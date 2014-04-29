@@ -11,6 +11,8 @@
 #MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #GNU General Public License for more details.
 
-#print("Hello World")
-#I added A line
-## I added a seccond line
+class testClass(object):
+	
+	def __init__(self,x):
+		self.foo = x
+		print "Initialized"

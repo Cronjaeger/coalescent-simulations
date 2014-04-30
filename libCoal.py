@@ -1,8 +1,12 @@
+#! /usr/bin/python2.7
+
 class partition(object):
     """Encodes a partition of the set [n]={0,...,n-1}, i.e. a
-    decomposition into non-intersectiong sets whose union is [n]"""
-    def __init__(self, *args):
-        self.blocks = list(args)
+    decomposition into non-intersectiong sets whose union is [n]
+    the argument initialBlocks should be a list of lists encoding the
+    initial block-state e.g. [[1],[2],[3],[4,5]]"""
+    def __init__(self, initialBlocks):
+        self.blocks = list(initialBlocks)
         self.sortBlocks()
         self.isOrdered = True #set to false, if blocks are altered
         self.n_blocks = self.countBlocks()
@@ -48,7 +52,7 @@ class partition(object):
 
         return True
     
-    def mergerSingle(self,*argList):
+    def mergeBlocksSingle(self,*argList):
         '''Merge all blocks with index in argList (a tuple of integers).
         Blocks are indexed (from 0) by order of least elements'''
 
@@ -72,7 +76,7 @@ class partition(object):
         self.blocks.append(B_new)
         self.sortBlocks()
     
-    def mergerMultiple(self,*argList):
+    def mergeBlocksMultiple(self,*argList):
         '''arglist is a tuple (I_0,...,I_k) of integers. This method
         merges all blocks with index j in the same I_i into one large
         block. It is written under the assumption that no index is out

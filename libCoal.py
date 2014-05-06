@@ -1,6 +1,7 @@
 #! /usr/bin/python2.7
 
 import numpy as np
+from scipy.special import binom
 from copy import deepcopy
 
 class partition(object):
@@ -86,6 +87,7 @@ class partition(object):
             B_new.extend(self.blocks.pop(i))
 
         self.blocks.append(B_new)
+        self.n_blocks = self.countBlocks()
         self.sortBlocks()
     
     def mergeBlocksMultiple(self,argList):
@@ -120,6 +122,7 @@ class partition(object):
         blocks_new.extend([self.blocks[i] for i in unaffected])
         
         self.blocks = blocks_new
+        self.n_blocks = self.countBlocks()
         self.sortBlocks()
 
 class coalescent(object):
@@ -128,7 +131,7 @@ class coalescent(object):
     def __init__(self,initialPartition,t_0 = 0.):
         self.jumps = [(t_0,initialPartition)]
         self.mutations = []
-        self.t_max = t_0
+        self.t_lastJump = t_0
         self.k_current = initialPartition.countBlocks()
         self.times = self.getJumptimes()
         self.partitionChain = self.getPartitionChain()
@@ -143,7 +146,7 @@ class coalescent(object):
         times = []
         for x in self.jumps:
             times.append(x[0])
-        return x
+        return times
     
     def getPartitionChain(self):
         chain = []
@@ -158,13 +161,13 @@ class coalescent(object):
         return chain
         
     def addJump(self,t_new,newBlocks):
-        if t_new < self.t_max:
+        if t_new < self.t_lastJump:
             pass
-            print 'New event at time t=',t_new,' will occur in the past! t_max = ',self.t_max,'. This is not supported!'
+            print 'New event at time t=',t_new,' will occur in the past! t_max = ',self.t_lastJump,'. This is not supported!'
         else:
             self.jumps.append((t_new,newBlocks))
             self.k_current = newBlocks.countBlocks()
-            self.t_max = t_new
+            self.t_lastJump = t_new
     
     def mergerEvent(self,t,mergedBlocks):
         '''mergedBlocks is a list of lists; all elememts of the same sublist get merged, and a jump to the resulting partition at time "t" is added to the list of jumps'''
@@ -185,7 +188,6 @@ class coalescent(object):
     
     def getState(self,t):
         'return the value of the coalescent at time t'
-        #TODO: Reread this method. It was written while drunk.
         i = 0
         while i < len(self.jumps) - 1 and t >= self.jumps[i+1][0]:
             i = i+1
@@ -198,29 +200,82 @@ class coalescent(object):
         return self.jumps[i][1]
     
     def computeSFS(self):
-        '''Computes the Site Frquency Spectrum of the coalescent, and encodes it as an array. Indexing starts at 0 i.e. SFS[i-1] = \xi_i. Mutations happening after T_MRCA are ignored in this implementation'''
+        '''Computes the Site Frquency Spectrum of the coalescent, and encodes it as an array. Indexing starts at 0 i.e. SFS[i-1] = xi_i. Mutations happening after T_MRCA are ignored in this implementation'''
         SFS = np.zeros(self.jumps[0][1].n_blocks)
         for m in self.mutations:
-            partition = self.__getStateNoCoppy(m[0])
-            if 1 < partition.n_blocks and partition.n_blocks - 1 <= m[1]:
+#            partition = self.__getStateNoCoppy(m[0])
+            partition = self.getState(m[0])
+            
+#            if 1 < partition.n_blocks and partition.n_blocks - 1 <= m[1]:
+            if 1 < partition.n_blocks and m[1] < partition.n_blocks:
+#            if True:
                 SFS[ len(partition.blocks[m[1]]) - 1 ] += 1
         return SFS
 
-class exchCoalWithMut(object):
+class simExchCoalWithMut(object):
+    '''
+    A parrent class for all coalescent simulations, containing all comon methods and fields.
+    '''
     
-    def __init__(self,n,tetha,T_max = infty):
+    def __init__(self,n,theta = 0,T_max = float('inf'),*args):
+        '''
+        n = number of individuals
+        theta = Mutation rate of the coalescent.
+        T_Max = Time-horizon of the coalescent.
+        '''
         self.mutationRate = theta
-        self.T_MRCA = inf
+#        self.mergerRate = mergerRate
+        self.T_max = T_max
+        self.T_MRCA = float('inf')
+        self.args = args
         self.SFS = np.zeros(n)
         self.coal = coalescent(partition([[i] for i in range(n)]))
+#        self.simulateCoalescent(self.args)
         self.simulateCoalescent()
         
     def simulateCoalescent(self):
         t_current = 0
-        while self.coal.k_current > 1 and t_current < T_max:
-            #finish THis
-            pass
+        keepGoing = True
+        while self.coal.k_current > 1 and keepGoing:
+            #Generate Next jumpevent. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.            
+            jumpEvent = self.sampleJumps()
+            t_old = t_current
+            t_current = jumpEvent[0]
             
+            if t_current > self.T_max:
+                keepGoing = False
+            
+            if keepGoing:
+                #Simulate all mutations that have happend in the time between the two jumps and add them.
+                delta_t = t_current - t_old
+                no_new_mutations = np.random.poisson(self.mutationRate * self.coal.k_current * delta_t)
+                affectedLineages = np.random.randint(0,self.coal.k_current,no_new_mutations)
+                mutationTimes = np.random.uniform(t_old,t_current,no_new_mutations)
+                for i in range(no_new_mutations):
+                    self.coal.addMutation((mutationTimes[i],affectedLineages[i]))
+                
+                #Add the jump itself
+                self.coal.mergerEvent(jumpEvent[0],jumpEvent[1],)
+
+            if self.coal.k_current == 1:
+                self.T_MRCA = self.coal.t_lastJump
+        
+        self.SFS = self.coal.computeSFS()
+        
+    def sampleJumps(self):
+        "Rewrite depending on what kind of coalescent we want to simulate"
+        pass
+    
+class simulateKingman(simExchCoalWithMut):
+        '''args[0] = merger-rate of two fixed lineages'''
+        def sampleJumps(self):
+#            pairwiseMergerRate=self.args[0]
+            pairwiseMergerRate = 1.
+            currentMergerRate= pairwiseMergerRate*binom(self.coal.k_current,2)
+            waitingTime=np.random.exponential(currentMergerRate**-1)
+            t = self.coal.t_lastJump + waitingTime
+            affectedBlocks = list(np.random.choice(self.coal.k_current,2,replace=False))
+            return (t,[affectedBlocks])
     
 def compareMinima(B1,B2):
     '''An auxilary function used for sorting blocks by order of least

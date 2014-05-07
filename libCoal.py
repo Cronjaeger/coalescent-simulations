@@ -230,7 +230,7 @@ class coalescent(object):
         l = 0.
         for i in range(1,len(self.jumps)):
             # RHS: number of lineages multiplied by length of time between jumps
-            l += self.jumps[i-1][1].n_blocks * (self.jumps[i][0] - self.jumps[i-1])
+            l += self.jumps[i-1][1].n_blocks * (self.jumps[i][0] - self.jumps[i-1][0])
         return l
 
 class simExchCoalWithMut(object):
@@ -298,10 +298,10 @@ class simExchCoalWithMut(object):
     def sampleJumps_LambdaPointMeasure(self,phi,rate=1.):
         "Samples Jumps of a Lambda-coalescent, where Lambda = rate * dirac_phi"
         t = self.coal.t_lastJump
+        
+        #We want to ignore "invisible jumps" i.e. jump-events where no lineages coaless with oneanother.
         keepGoing = True
-#        i = 0
         while keepGoing:
-#            i += 1
             t += np.random.exponential(rate**-1)
             affectedBlocks = []
             for i in range(self.coal.k_current):
@@ -310,9 +310,6 @@ class simExchCoalWithMut(object):
             mergers = self.split(affectedBlocks)
             if self.validateMergers(mergers):
                 keepGoing = False
-#            if i > 10000:
-#                print "The Loop in 'sampleJumps_LambdaPointMeasure' has gone on for too long"
-#                break
         return (t, mergers)
     
     def validateMergers(self,mergers):
@@ -341,11 +338,8 @@ class simulateLambdaPoint(simExchCoalWithMut):
 class simulateLambdaPoint_FourWay(simulateLambdaPoint):
 
     def split(self,affectedBlocks):
-        l = [[],[],[],[]]
-        for i in affectedBlocks:
-            l[np.random.randint(4)].append(i)
-        return l
-
+        return fourwaySplit(affectedBlocks)
+    
 class simulateLambdaBeta(simulateLambdaPoint):
     "here, lambda = beta(2-alpha,alpha), where 0 < alpha < 2. arg[0] = alpha"
     def sampleJumps(self):
@@ -355,10 +349,24 @@ class simulateLambdaBeta(simulateLambdaPoint):
 class simulateLambdaBeta_FourWay(simulateLambdaBeta):
     
     def split(self,affectedBlocks):
-        l = [[],[],[],[]]
-        for i in affectedBlocks:
-            l[np.random.randint(4)].append(i)
-        return l
+        return fourwaySplit(affectedBlocks)
+
+class simulateLambdaEldonWakely(simExchCoalWithMut):
+    'Here Lambda = 2/(2+phi^2) dirac_0 + phi^2/(2+pgi^2) dirac_phi. args[0] = phi'
+    
+    def sampleJumps(self):
+        phi = self.args[0]
+        kingmanJump = self.sampleJumps_Kingman(rate=2./(2+(phi**2)))
+        nonKingmanJump = self.sampleJumps_LambdaPointMeasure(phi,rate=(phi**2)/(2+(phi**2)))
+        if kingmanJump[0] < nonKingmanJump[0]:
+            return kingmanJump
+        else:
+            return nonKingmanJump
+
+class simulateLambdaEldonWakely_FourWay(simulateLambdaEldonWakely):
+    
+    def split(self,affectedBlocks):
+        return fourwaySplit(affectedBlocks)
     
 def compareMinima(B1,B2):
     '''An auxilary function used for sorting blocks by order of least
@@ -373,3 +381,15 @@ def coag(part1,part2):
     part_new = deepcopy(part1)
     part_new.mergeBlocksMultiple(part2.blocks)
     return part_new
+    
+def fourwaySplit(affectedBlocks):
+    '''
+    IN: a list of numbers.
+        e.g. [1,2,3,4,5,6,7,8,9,10]
+    OUT: a uniformly chosen random partition of the input into four blocks.
+        e.g. [[1], [4, 10], [3, 5, 7, 9], [2, 6, 8]]
+    '''
+    l = [[],[],[],[]]
+    for i in affectedBlocks:
+        l[np.random.randint(4)].append(i)
+    return l

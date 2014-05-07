@@ -43,8 +43,8 @@ Pi_Bet = []
 Pi_Bet4 = []
 
 for i in range(trials):
-    Pi_Bet.append(lc.simulateLambdaEldonWakely(n,theta,T_max,beta))
-    Pi_Bet4.append(lc.simulateLambdaEldonWakely_FourWay(n,theta,T_max,beta))
+    Pi_Bet.append(lc.simulateLambdaBeta(n,theta,T_max,beta))
+    Pi_Bet4.append(lc.simulateLambdaBeta_FourWay(n,theta,T_max,beta))
 
 Bet_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_Bet]) for i in range(n)])
 Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_Bet4]) for i in range(n)])

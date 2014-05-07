@@ -112,6 +112,9 @@ class partition(object):
         if not(self.isOrdered):
             self.sortBlocks()
 
+        #remove empty blocks from ArgList
+        argList = filter(lambda x: len(x) > 0 , argList)
+        
         #We first deal with the affected blocks
         for i,I in enumerate(argList):
             blocks_new.append([]) #Add an empty Block. It has index i
@@ -201,16 +204,34 @@ class coalescent(object):
     
     def computeSFS(self):
         '''Computes the Site Frquency Spectrum of the coalescent, and encodes it as an array. Indexing starts at 0 i.e. SFS[i-1] = xi_i. Mutations happening after T_MRCA are ignored in this implementation'''
-        SFS = np.zeros(self.jumps[0][1].n_blocks)
+        SFS = np.zeros(self.jumps[0][1].n_elements)
         for m in self.mutations:
 #            partition = self.__getStateNoCoppy(m[0])
-            partition = self.getState(m[0])
+            partition = self.__getStateNoCoppy(m[0])
             
 #            if 1 < partition.n_blocks and partition.n_blocks - 1 <= m[1]:
             if 1 < partition.n_blocks and m[1] < partition.n_blocks:
 #            if True:
                 SFS[ len(partition.blocks[m[1]]) - 1 ] += 1
         return SFS
+        
+    def computeNormalizedSFS(self):
+        SFS = self.computeSFS()
+        normSFS = np.zeros(len(SFS))
+        #TODO: compute normalization factor propperly
+        normalizationFactor = self.computeTreeLength()**-1
+
+        for i,xi in enumerate(SFS):
+            normSFS[i] = xi*normalizationFactor
+        
+        return normSFS
+    
+    def computeTreeLength(self):
+        l = 0.
+        for i in range(1,len(self.jumps)):
+            # RHS: number of lineages multiplied by length of time between jumps
+            l += self.jumps[i-1][1].n_blocks * (self.jumps[i][0] - self.jumps[i-1])
+        return l
 
 class simExchCoalWithMut(object):
     '''
@@ -266,16 +287,78 @@ class simExchCoalWithMut(object):
         "Rewrite depending on what kind of coalescent we want to simulate"
         pass
     
+    def sampleJumps_Kingman(self,rate=1.):
+        'Samples a jump of kingmans coalescent, whereby "rate" is the pairwise merger rate.'
+        currentMergerRate= rate*binom(self.coal.k_current,2)
+        waitingTime=np.random.exponential(currentMergerRate**-1)
+        t = self.coal.t_lastJump + waitingTime
+        affectedBlocks = list(np.random.choice(self.coal.k_current,2,replace=False))
+        return (t,[affectedBlocks])
+    
+    def sampleJumps_LambdaPointMeasure(self,phi,rate=1.):
+        "Samples Jumps of a Lambda-coalescent, where Lambda = rate * dirac_phi"
+        t = self.coal.t_lastJump
+        keepGoing = True
+#        i = 0
+        while keepGoing:
+#            i += 1
+            t += np.random.exponential(rate**-1)
+            affectedBlocks = []
+            for i in range(self.coal.k_current):
+                if np.random.uniform() <= phi:
+                    affectedBlocks.append(i)
+            mergers = self.split(affectedBlocks)
+            if self.validateMergers(mergers):
+                keepGoing = False
+#            if i > 10000:
+#                print "The Loop in 'sampleJumps_LambdaPointMeasure' has gone on for too long"
+#                break
+        return (t, mergers)
+    
+    def validateMergers(self,mergers):
+        #Tests if the list of lists "mergers" contains at least one list with more than one element.
+        return len(filter(lambda x: len(x) > 1, mergers)) > 0
+    
+    def split(self,affectedBlocks):
+        #Auxilary function for sampleJumps_LambdaPointMeasure. Rewrite if dealing with coalescents admitting simultanious mergers.
+        return [affectedBlocks]
+    
 class simulateKingman(simExchCoalWithMut):
-        '''args[0] = merger-rate of two fixed lineages'''
-        def sampleJumps(self):
-#            pairwiseMergerRate=self.args[0]
-            pairwiseMergerRate = 1.
-            currentMergerRate= pairwiseMergerRate*binom(self.coal.k_current,2)
-            waitingTime=np.random.exponential(currentMergerRate**-1)
-            t = self.coal.t_lastJump + waitingTime
-            affectedBlocks = list(np.random.choice(self.coal.k_current,2,replace=False))
-            return (t,[affectedBlocks])
+    '''args[0] = merger-rate of two fixed lineages'''
+    def sampleJumps(self):
+        rate=self.args[0]
+        return self.sampleJumps_Kingman(rate)
+
+class simulateLambdaPoint(simExchCoalWithMut):
+    '''Simulates a lambda coalescent, where lambda = \phi^2 dirac_phi,
+    Where phi is an element of (0,1]. The argiuments are as follows:
+    args[0] = phi
+    The total rate of mergers in this case is '''
+    def sampleJumps(self):
+        phi = self.args[0]
+        return self.sampleJumps_LambdaPointMeasure(phi)
+
+class simulateLambdaPoint_FourWay(simulateLambdaPoint):
+
+    def split(self,affectedBlocks):
+        l = [[],[],[],[]]
+        for i in affectedBlocks:
+            l[np.random.randint(4)].append(i)
+        return l
+
+class simulateLambdaBeta(simulateLambdaPoint):
+    "here, lambda = beta(2-alpha,alpha), where 0 < alpha < 2. arg[0] = alpha"
+    def sampleJumps(self):
+        phi = np.random.beta(2-self.args[0],self.args[0])
+        return self.sampleJumps_LambdaPointMeasure(phi)
+
+class simulateLambdaBeta_FourWay(simulateLambdaBeta):
+    
+    def split(self,affectedBlocks):
+        l = [[],[],[],[]]
+        for i in affectedBlocks:
+            l[np.random.randint(4)].append(i)
+        return l
     
 def compareMinima(B1,B2):
     '''An auxilary function used for sorting blocks by order of least

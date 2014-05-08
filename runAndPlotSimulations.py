@@ -35,7 +35,7 @@ import matplotlib.pyplot as pl
 
 n = 50
 theta = 1
-trials = 1000
+trials = 10000
 beta = 1.5
 T_max = float('inf')
 
@@ -51,6 +51,10 @@ Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_Bet4]) for i in range(
 
 x = np.arange(1,n+1)
 
-pl.plot(x,Bet_SFS_AVG, color='blue',label='b-coal. ; theta=1, beta=1.5')
-pl.plot(x , Bet4_SFS_AVG,color='red',label='4-way b-coal. ; theta=1, beta=1.5')
+#pl.plot(x,Bet_SFS_AVG, color='blue',label='b-coal. ; theta=1, beta=1.5')
+#pl.plot(x , Bet4_SFS_AVG,color='red',label='4-way b-coal. ; theta=1, beta=1.5')
+#pl.legend(loc='upper right')
+
+pl.plot(x,[np.log(y) for y in Bet_SFS_AVG], color='blue',label='b-coal. ; theta=1, beta=1.5 (log-scale)')
+pl.plot(x ,[np.log(y) for y in Bet4_SFS_AVG],color='red',label='4-way b-coal. ; theta=1, beta=1.5 (log-scale)')
 pl.legend(loc='upper right')

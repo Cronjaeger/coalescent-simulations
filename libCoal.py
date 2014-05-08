@@ -238,6 +238,8 @@ class simExchCoalWithMut(object):
     A parrent class for all coalescent simulations, containing all comon methods and fields.
     '''
     
+    IgnoreInvisibleJumps = True
+    
     def __init__(self,n,theta = 0,T_max = float('inf'),*args):
         '''
         n = number of individuals
@@ -258,10 +260,17 @@ class simExchCoalWithMut(object):
         t_current = 0
         keepGoing = True
         while self.coal.k_current > 1 and keepGoing:
-            #Generate Next jumpevent. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.            
-            jumpEvent = self.sampleJumps()
+            
             t_old = t_current
+            
+            #Generate Next jumpevent. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.
+            jumpEvent = self.sampleJumps()
             t_current = jumpEvent[0]
+            
+            #If the jumpEvent is invisble in the sense that no blocks merge, we ignore it (but add the time elapsed).
+            while self.IgnoreInvisibleJumps and not self.validateMergers(jumpEvent[1]):
+                jumpEvent = self.sampleJumps()
+                t_current = jumpEvent[0]
             
             if t_current > self.T_max:
                 keepGoing = False
@@ -301,15 +310,21 @@ class simExchCoalWithMut(object):
         
         #We want to ignore "invisible jumps" i.e. jump-events where no lineages coaless with oneanother.
         keepGoing = True
+#        i=0
         while keepGoing:
+#            i += 1
             t += np.random.exponential(rate**-1)
             affectedBlocks = []
             for i in range(self.coal.k_current):
                 if np.random.uniform() <= phi:
                     affectedBlocks.append(i)
             mergers = self.split(affectedBlocks)
-            if self.validateMergers(mergers):
-                keepGoing = False
+            keepGoing = False
+#            if self.validateMergers(mergers):
+#                keepGoing = False
+#            if i>5000:
+#                print "more than 5000 loops. WTF? phi=",phi
+#                break
         return (t, mergers)
     
     def validateMergers(self,mergers):
@@ -341,7 +356,7 @@ class simulateLambdaPoint_FourWay(simulateLambdaPoint):
         return fourwaySplit(affectedBlocks)
     
 class simulateLambdaBeta(simulateLambdaPoint):
-    "here, lambda = beta(2-alpha,alpha), where 0 < alpha < 2. arg[0] = alpha"
+    "Simulate a beta-coalescent, i.e. lambda = beta(2-alpha,alpha), where 0 < alpha < 2. arg[0] = alpha"
     def sampleJumps(self):
         phi = np.random.beta(2-self.args[0],self.args[0])
         return self.sampleJumps_LambdaPointMeasure(phi)

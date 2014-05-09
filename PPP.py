@@ -1,3 +1,6 @@
+#### NO LONGER IN USE
+#### ALL CODE IN ilbCoal.py
+
 class PPP(object):
 	'A Possion Point Process, for driving Xi-coalescents'
 	

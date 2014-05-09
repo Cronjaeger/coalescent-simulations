@@ -216,15 +216,18 @@ class coalescent(object):
         return SFS
         
     def computeNormalizedSFS(self):
+        '''
+        Returns the SFS 
+        '''
         SFS = self.computeSFS()
-        normSFS = np.zeros(len(SFS))
+#        SFS = self.SFS
         #TODO: Find out if this is the propper normalization factor.
-        normalizationFactor = self.computeTreeLength()**-1
+        normalizationFactor = (len(self.mutations)+1)**-1
 
-        for i,xi in enumerate(SFS):
-            normSFS[i] = xi*normalizationFactor
+#        for i,xi in enumerate(SFS):
+#            normSFS[i] = xi*normalizationFactor
         
-        return normSFS
+        return normalizationFactor * SFS
     
     def computeTreeLength(self):
         l = 0.
@@ -314,24 +317,29 @@ class simExchCoalWithMut(object):
     def sampleJumps_LambdaPointMeasure(self,phi,rate=1.):
         "Samples Jumps of a Lambda-coalescent, where Lambda = rate * dirac_phi"
         t = self.coal.t_lastJump
-        
-        #We want to ignore "invisible jumps" i.e. jump-events where no lineages coaless with oneanother.
-        keepGoing = True
+
+        t += np.random.exponential(rate**-1)
+        #TODO: Figure out if this is the correct rate
+
+### OLD AND WRONG
+#        keepGoing = True
 #        i=0
-        while keepGoing:
-#            i += 1
-            t += np.random.exponential(rate**-1)
-            affectedBlocks = []
-            for i in range(self.coal.k_current):
-                if np.random.uniform() <= phi:
-                    affectedBlocks.append(i)
-            mergers = self.split(affectedBlocks)
-            keepGoing = False
+#        while keepGoing:
+#            i += 1        
+#        affectedBlocks = []
+#        for i in range(self.coal.k_current):
+#            if np.random.uniform() <= phi:
+#                affectedBlocks.append(i)
+#            keepGoing = False
 #            if self.validateMergers(mergers):
 #                keepGoing = False
 #            if i>5000:
 #                print "more than 5000 loops. WTF? phi=",phi
 #                break
+###
+        r = np.random.uniform(size=self.coal.k_current)
+        affectedBlocks = filter(lambda i: r[i]<=phi,range(self.coal.k_current))
+        mergers = self.split(affectedBlocks)
         return (t, mergers)
     
     def validateMergers(self,mergers):

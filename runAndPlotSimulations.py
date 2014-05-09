@@ -39,22 +39,32 @@ trials = 10000
 beta = 1.5
 T_max = float('inf')
 
-Pi_Bet = []
-Pi_Bet4 = []
+Pi_1 = []
+Pi_2 = []
 
 for i in range(trials):
-    Pi_Bet.append(lc.simulateLambdaBeta(n,theta,T_max,beta))
-    Pi_Bet4.append(lc.simulateLambdaBeta_FourWay(n,theta,T_max,beta))
+    Pi_1.append(lc.simulateLambdaBeta(n,theta,T_max,beta))
+    Pi_2.append(lc.simulateLambdaBeta_FourWay(n,theta,T_max,beta))
 
-Bet_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_Bet]) for i in range(n)])
-Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_Bet4]) for i in range(n)])
+#Bet_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_1]) for i in range(n)])
+#Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_2]) for i in range(n)])
+
+Pi1_normSFS = [x.coal.computeNormalizedSFS() for x in Pi_1]
+Pi2_normSFS = [x.coal.computeNormalizedSFS() for x in Pi_2]
+
+Pi1_normSFS_AVG = np.array([np.average([x[i] for x in Pi1_normSFS]) for i in range(n)])
+Pi2_normSFS_AVG = np.array([np.average([x[i] for x in Pi2_normSFS]) for i in range(n)])
 
 x = np.arange(1,n+1)
-
-#pl.plot(x,Bet_SFS_AVG, color='blue',label='b-coal. ; theta=1, beta=1.5')
-#pl.plot(x , Bet4_SFS_AVG,color='red',label='4-way b-coal. ; theta=1, beta=1.5')
-#pl.legend(loc='upper right')
-
-pl.plot(x,[np.log(y) for y in Bet_SFS_AVG], color='blue',label='b-coal. ; theta=1, beta=1.5 (log-scale)')
-pl.plot(x ,[np.log(y) for y in Bet4_SFS_AVG],color='red',label='4-way b-coal. ; theta=1, beta=1.5 (log-scale)')
+label1 = 'b-coal. ; theta=1, beta=1.5'
+label2 = '4-way b-coal. ; theta=1, beta=1.5'
+pl.plot(x , map(np.log,Pi1_normSFS_AVG) , color='blue' , label=label1)
+pl.plot(x , map(np.log,Pi2_normSFS_AVG) , color='red' , label=label2)
 pl.legend(loc='upper right')
+
+#pl.plot(x,[np.log(y) for y in Bet_SFS_AVG], color='blue',label='b-coal. ; theta=1, beta=1.5 (log-scale)')
+#pl.plot(x ,[np.log(y) for y in Bet4_SFS_AVG],color='red',label='4-way b-coal. ; theta=1, beta=1.5 (log-scale)')
+pl.legend(loc='upper right')
+
+del Pi_1
+del Pi_2

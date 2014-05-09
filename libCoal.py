@@ -218,7 +218,7 @@ class coalescent(object):
     def computeNormalizedSFS(self):
         SFS = self.computeSFS()
         normSFS = np.zeros(len(SFS))
-        #TODO: compute normalization factor propperly
+        #TODO: Find out if this is the propper normalization factor.
         normalizationFactor = self.computeTreeLength()**-1
 
         for i,xi in enumerate(SFS):
@@ -232,6 +232,12 @@ class coalescent(object):
             # RHS: number of lineages multiplied by length of time between jumps
             l += self.jumps[i-1][1].n_blocks * (self.jumps[i][0] - self.jumps[i-1][0])
         return l
+    
+    def getJumpsInTimeRange(self,t_min,t_max):
+        return filter(lambda x: t_min <= x[0] and x[0] <= t_max, self.jumps)
+#        return deepcopy(filter(lambda x: t_min <= x[0] and x[0] <= t_max, self.jumps))
+    def getMutationsInTimeRange(self,t_min,t_max):
+        return filter(lambda x: t_min <= x[0] and x[0] <= t_max, self.mutations)
 
 class simExchCoalWithMut(object):
     '''
@@ -246,6 +252,7 @@ class simExchCoalWithMut(object):
         theta = Mutation rate of the coalescent.
         T_Max = Time-horizon of the coalescent.
         '''
+        self.n = n
         self.mutationRate = theta
 #        self.mergerRate = mergerRate
         self.T_max = T_max
@@ -382,7 +389,108 @@ class simulateLambdaEldonWakely_FourWay(simulateLambdaEldonWakely):
     
     def split(self,affectedBlocks):
         return fourwaySplit(affectedBlocks)
+
+class simulateXiDirichlet(simExchCoalWithMut):
+    '''
+    args[0] =   beta (non-negative constant)
+    args[1] =   gamma (a function that takes no arguments and outputs non-
+                negative numbers (typically random) 
+    '''
+    def simulateCoalescent(self):
+        kingmanSim = simulateKingman(self.n,self.mutationRate,float('inf'),1.)
+        subordinator = compensatedPossionProcess(T_max=min(kingmanSim.T_MRCA,self.T_max),beta=self.args[0],gamma=self.args[1])
+        # since the subordinator has drift 1 and positive jumps, S(T_mrca(kingman)) >= T_mrca(Subordinated Kingman)        
+
+        subordinatorJumps = [(0.,0.)] + subordinator.jumps #we add a jump of magnitude 0 in order to simplify the algorithm
+        for i,J in enumerate(subordinatorJumps):
+            sumOfJumpsSoFar = sum([x[1] for x in subordinatorJumps[:i]])
+            subordinatorPriorToJump = subordinator.drift*J[0] + sumOfJumpsSoFar
+            subordinatorAfterJump = subordinatorPriorToJump + J[1]
+
+            stateAfterJump = kingmanSim.coal.getState(subordinatorAfterJump)
+            if stateAfterJump.n_blocks < self.coal.jumps[-1][1].n_blocks:
+                self.coal.addJump(J[0],stateAfterJump)    
+
+            if i==len(subordinatorJumps) - 1:
+                nextJump = float('inf')
+            else:
+                nextJump = subordinatorAfterJump + subordinator.drift * (subordinatorJumps[i+1][0] - J[0])
+            
+            for event in kingmanSim.coal.getJumpsInTimeRange(subordinatorAfterJump,nextJump):
+                eventTime = (event[0]-sumOfJumpsSoFar)/subordinator.drift
+                # regarding the above:
+                # if    T = drift * t + Sum_{k=1}^{N_t} J_k
+                # then, t = (T - Sum_{k=1}^{N_t} J_k) / drift
+                if event[1].n_blocks < self.coal.jumps[-1][1].n_blocks:
+                    self.coal.addJump(eventTime,deepcopy(event[1]))
+
+            for mutation in kingmanSim.coal.getMutationsInTimeRange(subordinatorAfterJump,nextJump):
+                mutationTime = (mutation[0]-sumOfJumpsSoFar)/subordinator.drift
+                self.coal.addMutation((mutationTime,mutation[1]))
+        
+        if self.coal.k_current == 1:
+            self.T_MRCA = self.coal.t_lastJump
+        
+        self.SFS = self.coal.computeSFS()
+
+class compensatedPossionProcess(object):
+    '''Simulate a compensated Possion process with levy-measure beta * gamma
+    and drift 1. Beta is a constant scaling the frequency of jump-events, and
+    gamma is a measure'''
     
+    def __init__(self,T_max,beta=1.,gamma=np.random.exponential,drift=1.):
+        '''beta should be a non-negative number
+        gamma should be a fungtion that takes no arguments and returns a
+        positive number
+        The process is siumlated on the time-interval [0,T_max]
+        drift is assumed to be a constant term in this case'''
+        self.beta = beta
+        self.gamma = gamma
+        self.T_max = T_max
+        self.drift = drift
+        self.jumps = self.simulateJumps()
+        # jumps is a list of tuples of the form (t_jump,size_jump)
+    
+    def simulateJumps(self):
+        jumps = []
+        t = 0
+        while True:
+            t += np.random.exponential(self.beta**-1)
+            if t < self.T_max:
+                jumps.append((t,self.gamma()))
+            else:
+                break
+        return jumps
+
+    def getState(self,t):
+        if t > self.T_max:
+            t = self.T_max # the process is killed at time T_max
+        S_t = self.drift*t
+        S_t += sum([J[1] for J in filter(lambda x: x[0] <= t,self.jumps)])
+        return S_t
+    
+    def countJumpsUntil(self,t):
+        return len(filter(lambda J: J[0] <= t,self.jumps))
+    
+    def countJumpsInInterval(self,t_min,t_max):
+        return len(filter(lambda J: t_min <= J[0] and J[0] <= t_max,self.jumps))
+
+    def sumOfJumpsInInterval(self,t_min,t_max):
+        return sum([J[1] for J in filter(lambda x: t_min <= x[0] and x[0] <= t_max,self.jumps)])
+    
+    def timeOfNextJump(self,t):
+        if len(self.jumps) == 0: #case: No jumps have occured
+            return float('inf')
+        if t > self.jumps[-1][0]: # case: t > largest jumptime.
+            return float('inf')
+        i = 0
+        while self.jumps[i][0] <= t:
+            i += 1
+        return self.jumps[i][0]
+    
+    def resample(self):
+        self.jumps = self.simulateJumps()
+        
 def compareMinima(B1,B2):
     '''An auxilary function used for sorting blocks by order of least
     elements. Returns min(B1)-min(B2), i.e. a positive result when

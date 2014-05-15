@@ -321,7 +321,7 @@ class simExchCoalWithMut(object):
         t += np.random.exponential(rate**-1)
         #TODO: Figure out if this is the correct rate
 
-### OLD AND WRONG
+## OLD AND WRONG
 #        keepGoing = True
 #        i=0
 #        while keepGoing:
@@ -336,7 +336,7 @@ class simExchCoalWithMut(object):
 #            if i>5000:
 #                print "more than 5000 loops. WTF? phi=",phi
 #                break
-###
+##
         r = np.random.uniform(size=self.coal.k_current)
         affectedBlocks = filter(lambda i: r[i]<=phi,range(self.coal.k_current))
         mergers = self.split(affectedBlocks)

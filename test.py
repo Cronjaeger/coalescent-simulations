@@ -16,3 +16,23 @@ class testClass(object):
 	def __init__(self,x):
 		self.foo = x
 		print "Initialized"
+  
+
+def fib(n):
+    if n == 0 or n==1:
+        return 1
+    else:
+        return fib(n-1) + fib(n-2)
+
+def listCalc(n):
+    l = []
+    listBuild(l,n,n,0)
+    return l
+
+def listBuild(l,n,N,length):
+#    print n,N,l
+    if length == N-1:
+        return l.append(N)
+    else:
+        l.append(n)
+        listBuild(l,n-1,N,length+1)

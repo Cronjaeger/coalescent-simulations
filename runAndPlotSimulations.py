@@ -34,8 +34,8 @@ import matplotlib.pyplot as pl
 #
 
 n = 50
-theta = 1
-trials = 10000
+theta = 2.
+trials = 1000
 beta = 1.5
 T_max = float('inf')
 

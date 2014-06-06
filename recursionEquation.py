@@ -20,22 +20,36 @@ def lambda_beta_collisionRate(b,k,alpha):
         return Beta(k-alpha,b-k+alpha)/Beta(2-alpha,alpha)
 
 def fourWay_beta_collisionRate(b,k,alpha):
+    ###THIS FUNCTION DOES NOT RETURN WHAT IT OUGHT TO
+    ####PERHAPS IT DOES NOW?
     '''
     compute the rate of (b;k[1],...,k[len(k)];s)-collisions
     since s = b -sum(k), it does not need to be an argument
     it is assumed that all entries in the vector k are non-zero.
     '''
-#    r = len(k)
+    k = [x for x in k if x>1] #remove all 1 and 0 entires from k
     K = sum(k) #Total number of affected blocks
     if all([i==1 for i in k]) or K > b or K < 2 :
+#        print "fourWay_beta_collisionRate(%i,%i,%f) == 0"%(b,k,alpha)
         return 0
     else:
-        K = sum(k)
-        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k),[k.count(i) for i in range(1,K+1)])
-        # The first factor counts the ways that one can partition a K-set into subsets, with sizes given by the vector k (which has), divided by the total number ow ways one can 
-        # The last factor in the above, counts the number of different ways
-        # to arrange the numbers k[1],...k[len(k)]
-        return P_k * lambda_beta_collisionRate(b,K,alpha)
+        r = len(k)
+        return sum([lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
+
+
+#        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
+#        ''' The first factor counts the ways that one can partition a K-set into subsets, with sizes given by the vector k (which has), divided by the total number ow ways one can 
+#         The last factor in the above, counts the number of different ways
+#         to arrange the numbers k[1],...k[len(k)]'''
+#        if P_k > 1: #for testing
+#        print P_k,K,k
+#            print (k , [k.count(i) for i in range(1,K+1)])
+
+#        x = P_k * lambda_beta_collisionRate(b,K,alpha)
+#        if x==0.:
+#            print P_k,lambda_beta_collisionRate(b,K,alpha)
+#        print "fourWay_beta_collisionRate(%i,%i,%f) = %f * %f = %f "%(b,k,alpha,P_k,lambda_beta_collisionRate(b,K,alpha),x)
+#        return P_k * lambda_beta_collisionRate(b,K,alpha)
 
 def lambda_ew_collisionRate(b,k,c,phi):
     if k > b or k < 2:
@@ -50,18 +64,28 @@ def fourWay_ew_collisionRate(b,k,c,phi):
     it is assumed that all entries in the vector k are integers greater
     than 0, and that len(k) < 4
     '''
+    k = [x for x in k if x>1]
     K = sum(k)
     if all([i==1 for i in k]) or K > b or K < 2 :
         return 0
     else:
+        r = len(k)
         K = sum(k)
-        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k),[k.count(i) for i in range(1,K+1)])
+        return sum([lambda_ew_collisionRate(b,K,c,phi)*np.prod(range(4,4-(r+l),-1))/4.0**(K+l) for l in range(0,4-r+1)])
+        
+#        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
 #        print P_k,multinomial(K,k),(4.0**K),multinomial(len(k),[k.count(i) for i in range(1,K+1)])
         # The last factor in the above, counts the number of different ways
         # to arrange the numbers k[1],...k[len(k)]
-        return P_k * lambda_ew_collisionRate(b,K,c,phi)
+#        return P_k * lambda_ew_collisionRate(b,K,c,phi)
 
 def P_and_q(n,coalescentType,args):
+    '''
+        Returns
+         P: the transition matrix of the block-counting process
+         q: -1*diagonal of Q-matirx of block-counting process
+        
+    '''
     coalescentType = str.lower(coalescentType)
     if coalescentType=='kingman':
         return P_and_q_kingman(n)
@@ -102,6 +126,7 @@ def P_and_q_xi_beta(N,args):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
                 #TODO: is it appropriate to multiply with multinomial(n,p)?
+                # yes it is!
                 P[n,m] += multinomial(n,p) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
@@ -128,12 +153,14 @@ def P_and_q_xi_EW(N,args):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
                 #TODO: is it appropriate to multiply with multinomial(n,p)?
+                # yes it is
                 P[n,m] += multinomial(n,p) * fourWay_ew_collisionRate(n,[k for k in p if k > 1],c,phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
 
 def P_and_q_bottleneck(N,args):
+    #TODO: implement this
     pass
 
 def q(n,coalescentType,args=[]):
@@ -285,21 +312,36 @@ def p_and_g(N,coalescentType,*args):
                 for b in range(1,n-k+2):
                     p_mat[n,k,b] = binom(n-b-1,k-2)/binom(n-1,k-1)
         return p_mat,G_mat
+    
     elif coalescentType=='xi_beta' or coalescentType=='xi_ew':
         
         if coalescentType=='xi_beta':        
             def jumpProb(part,n,q):
+                '''
+                calculates
+                P(initial jump is to a specific state with block-sizes given by "part").
+                "part" is here a partition of n encoded as a multiset,
+                i.e. part[i] == #i-blocks of part, and
+                     sum(i * part[i]) == n
+                '''
                 m = []
                 for l in [j*[i] for i,j in enumerate(part) if j!=0]:
                     m.extend(l)
-                    return multinomial(n,m)*fourWay_beta_collisionRate(n,part,args[0]) /q[n]
+                #do this right!
+#                return multinomial(n,m)*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
+#                return 1*fourWay_beta_collisionRate(n,part,args[0]) /q[n]
+                return fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
 
         elif coalescentType=='xi_ew':
             def jumpProb(part,n,q):
+                '''
+                similar to the xi_beta-case
+                '''
                 m = []
                 for l in [j*[i] for i,j in enumerate(part) if j!=0]:
                     m.extend(l)
-                    return multinomial(n,m)*fourWay_ew_collisionRate(n,part,args[0],args[1])/q[n]
+                #m is an encoding of part as a sequence.
+                return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q[n]
     
         #By adding np.prod to the local scope, the number of global lookups per-
         # formed in the innermost for-loop is significantly reduced.    
@@ -316,11 +358,22 @@ def p_and_g(N,coalescentType,*args):
                     # we iterate over how many blocks we take from the partition we generate
                     for b1 in range(1,n1-k+2):
                         b1Result = quotResult*p_mat[n1,k,b1]
+#                        if p_mat[n1,k,b1] !=0: #for testing purposes
+#                            print "p_mat[n1=%i,k=%i,b1=%i]=%f" % (n1,k,b1,round(p_mat[n1,k,b1],2))
                         for p in partitionsMultiset_constrained(n,n1,4):
                             pResult = b1Result*jumpProb(p,n,q_vec)
+#                            if jumpProb(p,n,q_vec)!=0:
+#                                print "not 0; jumpProb =%f"%(jumpProb(p,n,q_vec))
+#                            if pResult!=0 or b1Result!=0:
+#                                print "Not 0, pResult=%f, b1Result=%f"%(pResult,b1Result)
                             for s in subpartitionsMultiset(p,b1):
-                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])
-        
+#                                product = myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])
+#                                x = pResult*product
+#                                if x!=0 or product!=0:
+#                                    print "(x,product,pResult)=(%f,%f,%f)"%(round(x,2),round(product,2),round(pResult,2))
+#                                p_mat[n,k,s[1]] += x
+                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])/binom(n1,s[1])
+#                print "p_mat[%i,%i,:]="%(n,k)+str([p_mat[n,k,:]])
         return p_mat,G_mat
     
     elif coalescentType=='lambda_beta' or coalescentType=='lambda_ew':
@@ -349,7 +402,9 @@ def partitionTest(x,n):
 
 def partitions(n,n1):
     '''Outputs the set {x : x is a partition of n into n1 parts}.
-    The partitions are returned as tuples in lexicographical order'''
+    The partitions are generated in lexicographical order, but
+    returned as a set (a data-structure without ordering) for
+    optimization purposes'''
     if n1==1:
         return set([(n,)])
     else:
@@ -421,7 +476,11 @@ def subpartitionsMultiset(part,b1):
     returns all subpartitions of the partitions Part (encoded as a multiset),
     that can be generated, by taking exactly b1 blocks from "part". The
     returned partitions are encoded as multisets.
-    The
+
+    Each subpartiton is encoded (s,sum), where s is a multiset-encoding of the
+    sub-partition, and "sum" is the sum of the block-sizes. "sum" is passed on
+    as a result, so that It does not have to be calculated separately at a
+    later point in time.
     '''
     n = len(part)
     if b1==n:

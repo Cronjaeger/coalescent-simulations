@@ -9,9 +9,8 @@ Created on Tue May 13 13:02:17 2014
 import numpy as np
 from scipy.special import binom
 from scipy.special import beta as Beta #lower-case beta is the beta-distribution in the numpy package
-
 #from itertools import product, izip, ifilter
-#from copy import copy
+from copy import copy
 
 def lambda_beta_collisionRate(b,k,alpha):
     if k > b or k < 2:
@@ -139,6 +138,7 @@ def P_and_q_lambda_EW(N,args):
     P = np.zeros((N+1,N+1))
     for n in xrange(1,N+1):
         for m in xrange(1,n):
+            ### P_and_q_lambda_EW, Is q[n] correctly calculated?
             P[n,m] = binom(n,n-m+1)*lambda_ew_collisionRate(n,n-m+1,c,phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
@@ -207,6 +207,7 @@ def reciprocal(x):
     '''
     #TODO: it seems more appropriate to set 0^-1 to float('inf'). Does this break anything?
     if x==0:
+#        return float('inf')
         return 0
     else:
         return x**-1
@@ -218,6 +219,7 @@ def G(P,q_diag):
     
     G(P,q_diag)[n,m] == g(n,m)
     computed using the recursion:
+    g(m,m) = 1/-q_{m,m}
     n>=m>1 implies g(n,m) = Sum_{k=m}^{n-1} P _{n,k}*g(k,m)
 
     Inputs:
@@ -225,50 +227,38 @@ def G(P,q_diag):
     q_diag[i] = -q_(i,i) (vacation rate of the block-counting process)
     '''
 #    q = np.r_[np.array([[0],[float('inf')]]),q_diag]
-    q = q_diag
-    for i,x in enumerate(q):
-        q[i] = reciprocal(x)
+    q_G = copy(q_diag)
+    for i,x in enumerate(q_G):
+        q_G[i] = reciprocal(x)
 #    N = P.shape[1] + 1
-    N = len(q)
+    N_G = len(q_G)
 #    G = np.eye(N).dot(q)
-    G = np.eye(N)
+    G_G = np.eye(N_G)
     # G[n,m] = g(n,m)
     
     #compute G under the assumption that G[m,m] == 1 for all m
-    for n in range(2,N):
+    for n in range(2,N_G):
         for m in range(n-1,1,-1):
-            G[n,m] = float(P[n-1,m-1:n-1].dot(G[m:n,m]))
+            G_G[n,m] = float(P[n-1,m-1:n-1].dot(G_G[m:n,m]))
     
     # scale row m of G by a factor of 1/-q_(m ,m)
-    G = G.dot(np.diag(q,0))
-    return G
+    G_G = G_G.dot(np.diag(q_G,0))
+    return G_G
     
 def g_ratio(k,G):
     '''
     returns a 1xn+1 matrix, g[:] = (0,...,0,G(k,k)/G(n,k),...,G(n,k)/G(n,k))
-    if coalescentType=='kingman':
-        return P_kingman(n)
-    elif coalescentType=='lambda_beta':
-        return P_lambda_beta(n,args)
-    elif coalescentType=='xi_beta':
-        return P_xi_beta(n,args)
-    elif coalescentType=='lambda_ew':
-        return P_lambda_EW(n,args)
-    elif coalescentType=='xi_ew':
-        return P_xi_EW(n,args)
-    elif coalescentType=='xi_bottleneck':
-        return P_bottleneck(n,args)(n-1,k)/G(n,k))
     '''
     n = G.shape[1]-1
-    g = np.concatenate((np.zeros(k),G[k:n+1,k]),1)
-    return g * G[n,k]**-1
+    g_gRatio = np.concatenate((np.zeros(k),G[k:n+1,k]),1)
+    return g_gRatio * G[n,k]**(-1)
     
 def multinomial(n,m):
     '''
     n = int
     m = list of integers summing to n
     '''
-    #TODO: figure out if I should re-implment binom myself
+    #TODO: re-implment binom myself, if the standard turns out to be too slow/inacurate
     if sum(m) != n:
         return 0
     else:
@@ -313,13 +303,14 @@ def p_and_g(N,coalescentType,*args):
                     p_mat[n,k,b] = binom(n-b-1,k-2)/binom(n-1,k-1)
         return p_mat,G_mat
     
+    #the case of four-way Xi-coalescents is treated
     elif coalescentType=='xi_beta' or coalescentType=='xi_ew':
-        
         if coalescentType=='xi_beta':        
             def jumpProb(part,n,q):
                 '''
                 calculates
-                P(initial jump is to a specific state with block-sizes given by "part").
+                P(initial jump is to a specific state with block-sizes given
+                by "part"); denoted p_lambda in my text.
                 "part" is here a partition of n encoded as a multiset,
                 i.e. part[i] == #i-blocks of part, and
                      sum(i * part[i]) == n
@@ -330,6 +321,7 @@ def p_and_g(N,coalescentType,*args):
                 #do this right!
 #                return multinomial(n,m)*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
 #                return 1*fourWay_beta_collisionRate(n,part,args[0]) /q[n]
+                ###JUMP PROB is calculated incorrectly!
                 return fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
 
         elif coalescentType=='xi_ew':
@@ -347,33 +339,64 @@ def p_and_g(N,coalescentType,*args):
         # formed in the innermost for-loop is significantly reduced.    
         myProd = np.prod
         
-        # we now iterate over n (first axis of p), and fill out the rest of p
-        for n in range(1,N+1):
-            #we iterate over k
-            for k in range(2,n+1):
-                gQuotient = g_ratio(k,G_mat)
-                # n1: number of blocks/lineages after first jump
-                for n1 in range(k,n):
-                    quotResult = gQuotient[n1]
-                    # we iterate over how many blocks we take from the partition we generate
-                    for b1 in range(1,n1-k+2):
-                        b1Result = quotResult*p_mat[n1,k,b1]
-#                        if p_mat[n1,k,b1] !=0: #for testing purposes
-#                            print "p_mat[n1=%i,k=%i,b1=%i]=%f" % (n1,k,b1,round(p_mat[n1,k,b1],2))
-                        for p in partitionsMultiset_constrained(n,n1,4):
-                            pResult = b1Result*jumpProb(p,n,q_vec)
-#                            if jumpProb(p,n,q_vec)!=0:
-#                                print "not 0; jumpProb =%f"%(jumpProb(p,n,q_vec))
-#                            if pResult!=0 or b1Result!=0:
-#                                print "Not 0, pResult=%f, b1Result=%f"%(pResult,b1Result)
-                            for s in subpartitionsMultiset(p,b1):
-#                                product = myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])
-#                                x = pResult*product
-#                                if x!=0 or product!=0:
-#                                    print "(x,product,pResult)=(%f,%f,%f)"%(round(x,2),round(product,2),round(pResult,2))
-#                                p_mat[n,k,s[1]] += x
-                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])/binom(n1,s[1])
-#                print "p_mat[%i,%i,:]="%(n,k)+str([p_mat[n,k,:]])
+#        # we now iterate over n (first axis of p), and fill out the rest of p
+#        for n in range(1,N+1):
+#            #we iterate over k
+#            for k in range(2,n+1):
+#                gQuotient = g_ratio(k,G_mat)
+#                # n1: number of blocks/lineages after first jump
+#                for n1 in range(k,n):
+#                    quotResult = gQuotient[n1]
+#                    # we iterate over how many blocks we take from the partition we generate
+#                    for b1 in range(1,n1-k+2):
+#                        #TODO: FOUND PROBLEM!
+#                        b1Result = quotResult*p_mat[n1,k,b1]
+##                        if p_mat[n1,k,b1] !=0: #for testing purposes
+##                            print "p_mat[n1=%i,k=%i,b1=%i]=%f" % (n1,k,b1,round(p_mat[n1,k,b1],2))
+#                        for p in partitionsMultiset_constrained(n,n1,4):
+#                            pResult = b1Result*jumpProb(p,n,q_vec)
+##                            if jumpProb(p,n,q_vec)!=0:
+##                                print "not 0; jumpProb =%f"%(jumpProb(p,n,q_vec))
+##                            if pResult!=0 or b1Result!=0:
+##                                print "Not 0, pResult=%f, b1Result=%f"%(pResult,b1Result)
+#                            for s in subpartitionsMultiset(p,b1):
+##                                product = myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])
+##                                x = pResult*product
+##                                if x!=0 or product!=0:
+##                                    print "(x,product,pResult)=(%f,%f,%f)"%(round(x,2),round(product,2),round(pResult,2))
+##                                p_mat[n,k,s[1]] += x
+#                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])/binom(n1,b1)
+##                                if p_mat[n,k,s[1]] == float('inf'):
+##                                    print "wtf! p_mat[%i,%i,%i] = inf"%(n,k,s[1])
+##                                    print "pResult=",pResult
+##                                    print "pSample s from p =",myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])/binom(n1,s[1])
+##                print "p_mat[%i,%i,:]="%(n,k)+str([p_mat[n,k,:]])
+
+
+##In the following, I have restructured, so that k is the inner variable. This
+# should speed things up considerably. Regrettibly, the results are shit so far
+        for n in list(range(1,N+1)):
+            for n1 in range(1,n):
+                for p in partitionsMultiset_constrained(n,n1,4):
+                    pResult = jumpProb(p,n,q_vec)
+#                    JumpProb was incorrectly calculated!
+                    # I suspect the problem is that q_n is incorrectly calculated
+                    # this was indeed the case the problem was the lack of a copy-statement
+#                    # Test
+#                    if pResult > 1.0:
+#                        print "P(",p," | %i) = %f \n q_vec[%i]=%f \n"%(n,pResult,b,q_vec[n])
+                    for b1 in range(1,n1):
+                        b1Result = pResult*(binom(n1,b1)**-1)
+                        for s in subpartitionsMultiset(p,b1):
+                            b = s[1]
+                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
+                            for k in range(2,n1-b1+2):
+                                new =  sResult*p_mat[n1,k,b]*(G_mat[n1,k]/G_mat[n,k])
+##                                testing s[1] seems to always hold?
+                                if new == 0:
+#                                    print "\n sResult =%f \n G_mat[n1,k] =%f \n p_mat[%i,%i,%i] = %f"%(sResult,G_mat[n1,k],n1,k,b,p_mat[n1,k,b])
+                                    print "(n,k,b,n1,b1,s[1])=(%i,%i,%i,%i,%i,%i)"%(n,k,b,n1,b1,s[1])
+                                p_mat[n,k,b] = p_mat[n,k,b] + new
         return p_mat,G_mat
     
     elif coalescentType=='lambda_beta' or coalescentType=='lambda_ew':

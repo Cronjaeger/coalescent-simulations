@@ -259,11 +259,13 @@ def multinomial(n,m):
     m = list of integers summing to n
     '''
     #TODO: re-implment binom myself, if the standard turns out to be too slow/inacurate
+    mybinom = binom
     if sum(m) != n:
         return 0
     else:
-        if len(m)==1: m = list(m)+[0] #else the reduce statement does not work
-        return reduce(lambda x,y:x*y,[binom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
+#        if len(m)==1: m = list(m)+[0] #else the reduce statement does not work
+#        return reduce(lambda x,y:x*y,[mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
+        return np.prod([mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
 
 
 ##OLD
@@ -272,7 +274,7 @@ def multinomial(n,m):
 #    pass
 #
 
-def p_and_g(N,coalescentType,*args):
+def p_and_g(N,coalescentType,args):
     '''
     returns an (N+1)x(N+1)x(N+1) array p, such that
     p[n,k,b] == p^{(n)}[k,b]
@@ -319,10 +321,10 @@ def p_and_g(N,coalescentType,*args):
                 for l in [j*[i] for i,j in enumerate(part) if j!=0]:
                     m.extend(l)
                 #do this right!
-#                return multinomial(n,m)*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
+                return multinomial(n,m)*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
 #                return 1*fourWay_beta_collisionRate(n,part,args[0]) /q[n]
                 ###JUMP PROB is calculated incorrectly!
-                return fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
+#                return fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
 
         elif coalescentType=='xi_ew':
             def jumpProb(part,n,q):
@@ -349,7 +351,6 @@ def p_and_g(N,coalescentType,*args):
 #                    quotResult = gQuotient[n1]
 #                    # we iterate over how many blocks we take from the partition we generate
 #                    for b1 in range(1,n1-k+2):
-#                        #TODO: FOUND PROBLEM!
 #                        b1Result = quotResult*p_mat[n1,k,b1]
 ##                        if p_mat[n1,k,b1] !=0: #for testing purposes
 ##                            print "p_mat[n1=%i,k=%i,b1=%i]=%f" % (n1,k,b1,round(p_mat[n1,k,b1],2))
@@ -375,7 +376,7 @@ def p_and_g(N,coalescentType,*args):
 
 ##In the following, I have restructured, so that k is the inner variable. This
 # should speed things up considerably. Regrettibly, the results are shit so far
-        for n in list(range(1,N+1)):
+        for n in range(1,N+1):
             for n1 in range(1,n):
                 for p in partitionsMultiset_constrained(n,n1,4):
                     pResult = jumpProb(p,n,q_vec)
@@ -390,21 +391,39 @@ def p_and_g(N,coalescentType,*args):
                         for s in subpartitionsMultiset(p,b1):
                             b = s[1]
                             sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-                            for k in range(2,n1-b1+2):
-                                new =  sResult*p_mat[n1,k,b]*(G_mat[n1,k]/G_mat[n,k])
+                            #what is the appropriate range for k?
+#                            for k in range(2,n+1):
+                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
+#                                new =  sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
 ##                                testing s[1] seems to always hold?
-                                if new == 0:
-#                                    print "\n sResult =%f \n G_mat[n1,k] =%f \n p_mat[%i,%i,%i] = %f"%(sResult,G_mat[n1,k],n1,k,b,p_mat[n1,k,b])
-                                    print "(n,k,b,n1,b1,s[1])=(%i,%i,%i,%i,%i,%i)"%(n,k,b,n1,b1,s[1])
-                                p_mat[n,k,b] = p_mat[n,k,b] + new
+#                                if new == 0:
+##                                    print "\n sResult =%f \n G_mat[n1,k] =%f \n p_mat[%i,%i,%i] = %f"%(sResult,G_mat[n1,k],n1,k,b,p_mat[n1,k,b])
+#                                    print "(n,k,b,n1,b1,s[1])=(%i,%i,%i,%i,%i,%i)"%(n,k,b,n1,b1,s[1])
+                                p_mat[n,k,b] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
         return p_mat,G_mat
     
+    ###CASE: Lambda-coalescents
     elif coalescentType=='lambda_beta' or coalescentType=='lambda_ew':
-        #TODO: implement Birkner-Blath-Eldon formula
-        pass
-    
-#def SFS(N,)
-    
+        for n in range(1,N+1):
+            for k in range(2,n+1):
+                for b in range(1,n-k+2):
+                    for n1 in range(k,n):
+                        res = 0.0
+                        if b > n-n1:
+                            res += (b-n+n1)/float(n1)*p_mat[n1,k,b-n+n1]
+                        if b < n1:
+                            res += (n1-b)/float(n1)*p_mat[n1,k,b]
+                        p_mat[n,k,b] += (P_mat[n,n1]*G[n1,k]/G[n,k])*res
+        return p_mat,G_mat
+
+def expectedSFS(n,coalescentType,tetha,*args):
+    p_mat,G_mat = p_and_g(n,coalescentType,args)
+    SFS = np.zeros(n)
+    normaLizedSFS = np.zeros(n)
+    for i in range(1,n):
+        SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])
+        normaLizedSFS[i] = SFS[i]/sum([l*G_mat(n,l)for l in range(2,n+1)])
+    return SFS,normaLizedSFS
 def partitionTest(x,n):
     '''
     Verify if a given sequence is a partition of N, sorted in descending order

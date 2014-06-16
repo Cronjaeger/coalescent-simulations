@@ -13,11 +13,13 @@
 
 import time
 import recursionEquation as re
+import libCoal as lc
 from scipy.special import binom
 import numpy as np
 
-n = 25
+n = 15
 alpha = 1.7
+coalType = "xi_beta"
 args = (alpha,)
 
 print "Solving p-recursion for a Xi-beta coalescent with n=%i, alpha=%f..."%(n,round(alpha,3))

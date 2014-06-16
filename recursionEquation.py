@@ -388,18 +388,19 @@ def p_and_g(N,coalescentType,args):
 #                        print "P(",p," | %i) = %f \n q_vec[%i]=%f \n"%(n,pResult,b,q_vec[n])
                     for b1 in range(1,n1):
                         b1Result = pResult*(binom(n1,b1)**-1)
+                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
                         for s in subpartitionsMultiset(p,b1):
-                            b = s[1]
+#                            b = s[1]
                             sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
                             #what is the appropriate range for k?
-#                            for k in range(2,n+1):
-                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
+                            for k in kRange:
+#                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
 #                                new =  sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
 ##                                testing s[1] seems to always hold?
 #                                if new == 0:
 ##                                    print "\n sResult =%f \n G_mat[n1,k] =%f \n p_mat[%i,%i,%i] = %f"%(sResult,G_mat[n1,k],n1,k,b,p_mat[n1,k,b])
 #                                    print "(n,k,b,n1,b1,s[1])=(%i,%i,%i,%i,%i,%i)"%(n,k,b,n1,b1,s[1])
-                                p_mat[n,k,b] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
+                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
         return p_mat,G_mat
     
     ###CASE: Lambda-coalescents
@@ -417,13 +418,21 @@ def p_and_g(N,coalescentType,args):
         return p_mat,G_mat
 
 def expectedSFS(n,coalescentType,tetha,*args):
+    '''The function to be called from outside this program. It returns the
+    following four arrays:
+    - The expected site-frequency-spectrum
+    - the expected normalized site-frequency spectrum
+    - the solution of the p(n)[k,b]-recursion equations
+    - the solution of the g(n,k)-recursions
+    '''
     p_mat,G_mat = p_and_g(n,coalescentType,args)
     SFS = np.zeros(n)
     normaLizedSFS = np.zeros(n)
     for i in range(1,n):
         SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])
-        normaLizedSFS[i] = SFS[i]/sum([l*G_mat(n,l)for l in range(2,n+1)])
-    return SFS,normaLizedSFS
+        normaLizedSFS[i] = SFS[i]/sum([l*G_mat[n,l] for l in range(2,n+1)])
+    return SFS,normaLizedSFS,p_mat,G_mat
+
 def partitionTest(x,n):
     '''
     Verify if a given sequence is a partition of N, sorted in descending order
@@ -531,7 +540,9 @@ def subpartitionsMultiset(part,b1):
         return [part]
     else:
         subP = set()
-        for i in [j for j in xrange(n) if part[j] != 0]:
+        for i in (j for j in xrange(n) if part[j] != 0):
+#        for i in xrange(n):
+#            if part[i] != 0:
             buildSubPartMulti(tuple([part[j] - int(j==i) for j in xrange(n)]),tuple([int(j==i) for j in xrange(n)]),n,b1-1,i,subP)
         return subP
 
@@ -539,5 +550,7 @@ def buildSubPartMulti(origPart,subPart,n,toGo,Sum,subP):
     if toGo==0:
         subP.add((subPart,Sum))
     else:
-        for i in [j for j in xrange(n) if origPart[j] != 0]:
+        for i in (j for j in xrange(n) if origPart[j] != 0):
+#        for i in xrange(n):
+#            if origPart[i] != 0:
             buildSubPartMulti(tuple([origPart[j] - int(j==i) for j in xrange(n)]),tuple([subPart[j] + int(j==i) for j in xrange(n)]),n,toGo-1,Sum+i,subP)

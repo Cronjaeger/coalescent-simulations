@@ -16,17 +16,49 @@ import recursionEquation as re
 import libCoal as lc
 from scipy.special import binom
 import numpy as np
+import matplotlib.pyplot as pl
 
-n = 15
-alpha = 1.7
-coalType = "xi_beta"
-args = (alpha,)
 
-print "Solving p-recursion for a Xi-beta coalescent with n=%i, alpha=%f..."%(n,round(alpha,3))
-t_start = time.time()
-p,g = re.p_and_g(n,'xi_beta',(alpha,))
-t_stop = time.time()
-print "...done! \ncalculations took %f seconds"%(round(t_stop-t_start,3))
+##count number of terms in recursion:
+n = 60
+array = np.array #for speed -purposes
+prod = np.prod # for speed-purposes
+partitionsMultiset = re.partitionsMultiset
+x = 0
+for n1 in range(1,n+1):
+    for p in partitionsMultiset(n,n1):
+        x += prod(array(p) + 1) - 1
+print x
+print "the cardinality of the set {(p,p_sub) | p partition of %i, p_sub subpartition of p} is %i"%(n,x)
+
+### Generate plots of distribution of partition-sizes
+#nSet = range(45,56)
+#nMax = max(nSet)
+#x = np.arange(1,nMax+1)
+#
+#p = np.zeros((len(nSet),nMax))
+#
+#for i,n in enumerate(nSet):
+#    for k in range(n):
+#        p[i,k] = len(re.partitions(n,k+1))
+#    pl.plot(x,p[i,:],label='n = %i'%(n))
+##    pl.plot(x,map(np.log,p[i,:]),label='n=%i'%(n))
+#pl.legend(loc='upper right')
+#pl.title("Distribution of size of partitions of n")
+
+#pl.plot(x , Pi2_normSFS_AVG , color='red' , label=label2)
+#pl.legend(loc='upper right')
+
+#n = 15
+#alpha = 1.7
+#coalType = "xi_beta"
+#args = (alpha,)
+#
+#print "Solving p-recursion for a Xi-beta coalescent with n=%i, alpha=%f..."%(n,round(alpha,3))
+#t_start = time.time()
+#p,g = re.p_and_g(n,'xi_beta',(alpha,))
+#t_stop = time.time()
+#print "...done! \ncalculations took %f seconds"%(round(t_stop-t_start,3))
 
 
 #def jumpProb(part,n,q):

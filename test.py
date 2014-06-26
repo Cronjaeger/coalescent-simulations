@@ -19,17 +19,17 @@ import numpy as np
 import matplotlib.pyplot as pl
 
 
-##count number of terms in recursion:
-n = 60
-array = np.array #for speed -purposes
-prod = np.prod # for speed-purposes
-partitionsMultiset = re.partitionsMultiset
-x = 0
-for n1 in range(1,n+1):
-    for p in partitionsMultiset(n,n1):
-        x += prod(array(p) + 1) - 1
-print x
-print "the cardinality of the set {(p,p_sub) | p partition of %i, p_sub subpartition of p} is %i"%(n,x)
+###count number of terms in recursion:
+#n = 60
+#array = np.array #for speed -purposes
+#prod = np.prod # for speed-purposes
+#partitionsMultiset = re.partitionsMultiset
+#x = 0
+#for n1 in range(1,n+1):
+#    for p in partitionsMultiset(n,n1):
+#        x += prod(array(p) + 1) - 1
+#print x
+#print "the cardinality of the set {(p,p_sub) | p partition of %i, p_sub subpartition of p} is %i"%(n,x)
 
 ### Generate plots of distribution of partition-sizes
 #nSet = range(45,56)

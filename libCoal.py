@@ -129,7 +129,9 @@ class partition(object):
         self.sortBlocks()
 
 class coalescent(object):
-    '''Used to encode the jump-chain of a coalescent process. Supports updating when merger-events occur. Also supports adding mutations amd computing coalescent-statistics.'''
+    '''Used to encode the jump-chain of a coalescent process. Supports updating
+    when merger-events occur. Also supports adding mutations amd computing
+    coalescent-statistics.'''
     
     def __init__(self,initialPartition,t_0 = 0.):
         self.jumps = [(t_0,initialPartition)]
@@ -163,6 +165,9 @@ class coalescent(object):
             chain.append(x[1].numberPartition())
         return chain
         
+    def getMutations(self):
+        return deepcopy(self.mutations)
+        
     def addJump(self,t_new,newBlocks):
         if t_new < self.t_lastJump:
             pass
@@ -173,7 +178,9 @@ class coalescent(object):
             self.t_lastJump = t_new
     
     def mergerEvent(self,t,mergedBlocks):
-        '''mergedBlocks is a list of lists; all elememts of the same sublist get merged, and a jump to the resulting partition at time "t" is added to the list of jumps'''
+        '''mergedBlocks is a list of lists; all elememts of the same sublist
+        get merged, and a jump to the resulting partition at time "t" is added
+        to the list of jumps'''
         #self.jumps[-1][1] is the partition after the last jump
         newPartition = deepcopy(self.jumps[-1][1])
         newPartition.mergeBlocksMultiple(mergedBlocks)
@@ -186,7 +193,10 @@ class coalescent(object):
         self.addJump(t,newPartition)
     
     def addMutation(self,mutation):
-        'adds a Mutation. Mutations are encoded as tuples of the form (time,lineage); signifying that at time t, a mutation occurs to the n-th lineage (w.r.t. order of least elements starting at 0) of the coalescent'
+        '''adds a Mutation. Mutations are encoded as tuples of the form
+        (time,lineage); signifying that at time t, a mutation occurs to the
+        n-th lineage (w.r.t. order of least elements starting at 0) of the
+        coalescent'''
         self.mutations.append(mutation)
     
     def getState(self,t):
@@ -196,14 +206,20 @@ class coalescent(object):
             i = i+1
         return deepcopy(self.jumps[i][1])
 
-    def __getStateNoCoppy(self,t): #should not be called ny user
+    def __getStateNoCoppy(self,t):
+        '''Returns the last object in self.jumps with a time-index <= t
+        It does NOT return a copy of said object, and is only meant facilitate
+        that other methods that do not alter the internal state can be sped up
+        by skipping the copy-step'''
         i = 0
         while i < len(self.jumps) - 1 and t >= self.jumps[i+1][0]:
             i += 1
         return self.jumps[i][1]
     
     def computeSFS(self):
-        '''Computes the Site Frquency Spectrum of the coalescent, and encodes it as an array. Indexing starts at 0 i.e. SFS[i-1] = xi_i. Mutations happening after T_MRCA are ignored in this implementation'''
+        '''Computes the Site Frquency Spectrum of the coalescent, and encodes
+        it as an array. Indexing starts at 0 i.e. SFS[i-1] = xi^(n)_i.
+        Mutations happening after T_MRCA are ignored in this implementation'''
         SFS = np.zeros(self.jumps[0][1].n_elements)
         for m in self.mutations:
 #            partition = self.__getStateNoCoppy(m[0])
@@ -215,21 +231,27 @@ class coalescent(object):
                 SFS[ len(partition.blocks[m[1]]) - 1 ] += 1
         return SFS
         
-    def computeNormalizedSFS(self):
+    def computeNormalizedSFS(self,factor=False):
         '''
-        Returns the SFS 
+        Returns the SFS/factor. If no factor is passed, #mutations+1 is used
         '''
         SFS = self.computeSFS()
 #        SFS = self.SFS
-        #TODO: Find out if this is the propper normalization factor.
-        normalizationFactor = (len(self.mutations)+1)**-1
-
+        
+        if not(factor):        
+            '''This normalization-factor was suggested by Bjarki Eldon, and
+            seems reasonable. It is not the same factor as the one used in the
+            paper by Birkner, Blath and Eldon (2013)'''
+            normalizationFactor = (len(self.mutations)+1)**-1
+        else:
+            normalizationFactor = factor**-1
 #        for i,xi in enumerate(SFS):
 #            normSFS[i] = xi*normalizationFactor
         
         return normalizationFactor * SFS
     
     def computeTreeLength(self):
+        '''returns the total length of lineages'''
         l = 0.
         for i in range(1,len(self.jumps)):
             # RHS: number of lineages multiplied by length of time between jumps
@@ -249,14 +271,14 @@ class simExchCoalWithMut(object):
     
     IgnoreInvisibleJumps = True
     
-    def __init__(self,n,theta = 0,T_max = float('inf'),*args):
+    def __init__(self,n,mutationRate = 0,T_max = float('inf'),*args):
         '''
         n = number of individuals
-        theta = Mutation rate of the coalescent.
+        mutationRate = Mutation rate of the coalescent.
         T_Max = Time-horizon of the coalescent.
         '''
         self.n = n
-        self.mutationRate = theta
+        self.mutationRate = mutationRate
 #        self.mergerRate = mergerRate
         self.T_max = T_max
         self.T_MRCA = float('inf')
@@ -268,12 +290,13 @@ class simExchCoalWithMut(object):
         
     def simulateCoalescent(self):
         t_current = 0
+
         keepGoing = True
         while self.coal.k_current > 1 and keepGoing:
             
             t_old = t_current
             
-            #Generate Next jumpevent. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.
+            #Generate Next jump-event. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.
             jumpEvent = self.sampleJumps()
             t_current = jumpEvent[0]
             
@@ -317,7 +340,6 @@ class simExchCoalWithMut(object):
     def sampleJumps_LambdaPointMeasure(self,phi,rate=1.):
         "Samples Jumps of a Lambda-coalescent, where Lambda = rate * dirac_phi"
         t = self.coal.t_lastJump
-
         t += np.random.exponential(rate**-1)
         #TODO: Figure out if this is the correct rate
 
@@ -387,7 +409,7 @@ class simulateLambdaEldonWakely(simExchCoalWithMut):
     def sampleJumps(self):
         phi = self.args[0]
         kingmanJump = self.sampleJumps_Kingman(rate=2./(2+(phi**2)))
-        nonKingmanJump = self.sampleJumps_LambdaPointMeasure(phi,rate=(phi**2)/(2+(phi**2)))
+        nonKingmanJump = self.sampleJumps_LambdaPointMeasure(phi,rate=1./(2+(phi**2)))
         if kingmanJump[0] < nonKingmanJump[0]:
             return kingmanJump
         else:

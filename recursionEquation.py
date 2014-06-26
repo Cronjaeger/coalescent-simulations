@@ -54,7 +54,7 @@ def lambda_ew_collisionRate(b,k,c,phi):
     if k > b or k < 2:
         return 0
     else:
-        return int(k==2) + c*(phi**k)*((1-phi)**(b-k))
+        return (2./(2. + phi*phi)) * int(k==2) + c*(phi**k)*((1-phi)**(b-k))/(2. + phi*phi)
 
 def fourWay_ew_collisionRate(b,k,c,phi):
     '''
@@ -280,8 +280,10 @@ def p_and_g(N,coalescentType,args):
     p[n,k,b] == p^{(n)}[k,b]
     supported coalescent types are:
         'kingman'
-        'xi_beta'   (args[0] = alpha)
-        'xi_ew'     (args[0] = c, args[1]=phi)
+        'xi_beta'       (args[0] = alpha)
+        'xi_ew'         (args[0] = c, args[1]=phi)
+        'lambda_beta'   (args[0] = alpha)
+        'lambda_ew'     (args[0] = c, args[1]=phi)
     '''
 #TODO: add support for lambda-coalescents
 
@@ -414,7 +416,7 @@ def p_and_g(N,coalescentType,args):
                             res += (b-n+n1)/float(n1)*p_mat[n1,k,b-n+n1]
                         if b < n1:
                             res += (n1-b)/float(n1)*p_mat[n1,k,b]
-                        p_mat[n,k,b] += (P_mat[n,n1]*G[n1,k]/G[n,k])*res
+                        p_mat[n,k,b] += (P_mat[n,n1]*G_mat[n1,k]/G_mat[n,k])*res
         return p_mat,G_mat
 
 def expectedSFS(n,coalescentType,tetha,*args):
@@ -428,9 +430,12 @@ def expectedSFS(n,coalescentType,tetha,*args):
     p_mat,G_mat = p_and_g(n,coalescentType,args)
     SFS = np.zeros(n)
     normaLizedSFS = np.zeros(n)
+    normFactor = sum([l*G_mat[n,l] for l in range(2,n+1)])*tetha/2.0
     for i in range(1,n):
-        SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])
-        normaLizedSFS[i] = SFS[i]/sum([l*G_mat[n,l] for l in range(2,n+1)])
+        SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])        
+#       #normalizedSFS should NOT depend on the vaue of theta...
+#        normaLizedSFS[i] = SFS[i]/sum([l*G_mat[n,l] for l in range(2,n+1)])
+        normaLizedSFS[i] = SFS[i]/normFactor
     return SFS,normaLizedSFS,p_mat,G_mat
 
 def partitionTest(x,n):

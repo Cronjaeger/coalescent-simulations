@@ -337,6 +337,20 @@ class simExchCoalWithMut(object):
         affectedBlocks = list(np.random.choice(self.coal.k_current,2,replace=False))
         return (t,[affectedBlocks])
     
+    def sampleJumpsLambdaCTMC(self,P,q):
+        '''Samples a jump of an arbitrary exchangeable Lambda-coalescent given
+        The distribution of the block-counting-process.
+            P[i,j] = Probability of jump from i to j
+            q[i] = total rate of jumps out of i
+        '''
+        t = self.coal.t_lastJump
+        b = self.coal.k_current
+        t += np.random.exponential(q[b]**-1)
+        b_New = np.random.choice(b,p=P[b,:b])
+        affectedBlocks = list(np.random.choice(b,size=b-b_New+1,replace=False))
+        mergers = self.split(affectedBlocks)
+        return (t,mergers)
+    
     def sampleJumps_LambdaPointMeasure(self,phi,rate=1.):
         "Samples Jumps of a Lambda-coalescent, where Lambda = rate * dirac_phi"
         t = self.coal.t_lastJump
@@ -393,10 +407,23 @@ class simulateLambdaPoint_FourWay(simulateLambdaPoint):
         return fourwaySplit(affectedBlocks)
     
 class simulateLambdaBeta(simulateLambdaPoint):
-    "Simulate a beta-coalescent, i.e. lambda = beta(2-alpha,alpha), where 0 < alpha < 2. arg[0] = alpha"
+    '''Simulate a beta-coalescent, i.e. lambda = beta(2-alpha,alpha), where
+    0 < alpha < 2.
+        arg[0] = alpha
+        arg[1] = P-matrix of jumps
+        arg[2] = jump-rates'''
     def sampleJumps(self):
-        phi = np.random.beta(2-self.args[0],self.args[0])
-        return self.sampleJumps_LambdaPointMeasure(phi)
+#        #OLD AND WRONG
+#        phi = np.random.beta(2-self.args[0],self.args[0])
+#        return self.sampleJumps_LambdaPointMeasure(phi)
+        #NEW AND LESS WRONG
+        return self.sampleJumpsLambdaCTMC(self.args[1],self.args[2])
+#        t = self.coal.t_lastJump
+#        b = self.coal.k_current
+#        t += np.random.exponential(self.args[2][b]**-1)
+#        b_New = np.random.choice(b,p=self.args[1][b,:b])
+#        affectedBlocks = list(np.random.choice(b,size=b-b_New+1,replace=False))
+#        return (t,[affectedBlocks])
 
 class simulateLambdaBeta_FourWay(simulateLambdaBeta):
     

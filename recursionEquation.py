@@ -19,8 +19,6 @@ def lambda_beta_collisionRate(b,k,alpha):
         return Beta(k-alpha,b-k+alpha)/Beta(2-alpha,alpha)
 
 def fourWay_beta_collisionRate(b,k,alpha):
-    ###THIS FUNCTION DOES NOT RETURN WHAT IT OUGHT TO
-    ####PERHAPS IT DOES NOW?
     '''
     compute the rate of (b;k[1],...,k[len(k)];s)-collisions
     since s = b -sum(k), it does not need to be an argument
@@ -29,11 +27,10 @@ def fourWay_beta_collisionRate(b,k,alpha):
     k = [x for x in k if x>1] #remove all 1 and 0 entires from k
     K = sum(k) #Total number of affected blocks
     if all([i==1 for i in k]) or K > b or K < 2 :
-#        print "fourWay_beta_collisionRate(%i,%i,%f) == 0"%(b,k,alpha)
         return 0
     else:
         r = len(k)
-        return sum([lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
+        return sum([binom(b-K,l) * lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
 
 
 #        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
@@ -70,7 +67,7 @@ def fourWay_ew_collisionRate(b,k,c,phi):
     else:
         r = len(k)
         K = sum(k)
-        return sum([lambda_ew_collisionRate(b,K,c,phi)*np.prod(range(4,4-(r+l),-1))/4.0**(K+l) for l in range(0,4-r+1)])
+        return sum([binom(b-K,l)*lambda_ew_collisionRate(b,K,c,phi)*np.prod(range(4,4-(r+l),-1))/4.0**(K+l) for l in range(0,4-r+1)])
         
 #        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
 #        print P_k,multinomial(K,k),(4.0**K),multinomial(len(k),[k.count(i) for i in range(1,K+1)])
@@ -100,7 +97,10 @@ def P_and_q(n,coalescentType,args):
         return P_and_q_bottleneck(n,args)
 
 def P_and_q_kingman(n):
-    P = np.r_[np.eye(1,n) , np.eye(n-1,n)]
+    P = np.eye(n+1,k=-1)
+    P[1,0] = 0.
+    P[1,1] = 1.
+#    P = np.r_[np.eye(1,n) , np.eye(n-1,n)]
     # should i just use eye(5,k=-1) (I dont think P[0,0] is ever used)
     q = q_kingman(n)
     return P,q
@@ -108,6 +108,7 @@ def P_and_q_kingman(n):
 def P_and_q_lambda_beta(N,args):
     alpha = args[0]
     P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
     q = np.zeros(N+1)
     for n in xrange(2,N+1):
         for m in xrange(1,n):
@@ -120,12 +121,11 @@ def P_and_q_xi_beta(N,args):
 #    print "args=",args
     alpha = args[0]
     P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
     q = np.zeros(N+1)
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
-                #TODO: is it appropriate to multiply with multinomial(n,p)?
-                # yes it is!
                 P[n,m] += multinomial(n,p) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
@@ -136,6 +136,7 @@ def P_and_q_lambda_EW(N,args):
     phi = args[1]
     q = np.zeros(N+1)
     P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
     for n in xrange(1,N+1):
         for m in xrange(1,n):
             ### P_and_q_lambda_EW, Is q[n] correctly calculated?
@@ -149,6 +150,7 @@ def P_and_q_xi_EW(N,args):
     phi = args[1]
     q = np.zeros(N+1)
     P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
@@ -347,61 +349,33 @@ def p_and_g(N,coalescentType,args):
 #        for n in range(1,N+1):
 #            #we iterate over k
 #            for k in range(2,n+1):
-#                gQuotient = g_ratio(k,G_mat)
+##                gQuotient = g_ratio(k,G_mat)
 #                # n1: number of blocks/lineages after first jump
 #                for n1 in range(k,n):
-#                    quotResult = gQuotient[n1]
+#                    quotResult = G_mat[n1,k]/G_mat[n,k]
+##                    quotResult = gQuotient[n1]
 #                    # we iterate over how many blocks we take from the partition we generate
 #                    for b1 in range(1,n1-k+2):
 #                        b1Result = quotResult*p_mat[n1,k,b1]
-##                        if p_mat[n1,k,b1] !=0: #for testing purposes
-##                            print "p_mat[n1=%i,k=%i,b1=%i]=%f" % (n1,k,b1,round(p_mat[n1,k,b1],2))
 #                        for p in partitionsMultiset_constrained(n,n1,4):
 #                            pResult = b1Result*jumpProb(p,n,q_vec)
-##                            if jumpProb(p,n,q_vec)!=0:
-##                                print "not 0; jumpProb =%f"%(jumpProb(p,n,q_vec))
-##                            if pResult!=0 or b1Result!=0:
-##                                print "Not 0, pResult=%f, b1Result=%f"%(pResult,b1Result)
 #                            for s in subpartitionsMultiset(p,b1):
-##                                product = myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])
-##                                x = pResult*product
-##                                if x!=0 or product!=0:
-##                                    print "(x,product,pResult)=(%f,%f,%f)"%(round(x,2),round(product,2),round(pResult,2))
-##                                p_mat[n,k,s[1]] += x
 #                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])/binom(n1,b1)
-##                                if p_mat[n,k,s[1]] == float('inf'):
-##                                    print "wtf! p_mat[%i,%i,%i] = inf"%(n,k,s[1])
-##                                    print "pResult=",pResult
-##                                    print "pSample s from p =",myProd([binom(p[i],s[0][i]) for i in xrange(s[1]+1) if s[0][i] != 0])/binom(n1,s[1])
-##                print "p_mat[%i,%i,:]="%(n,k)+str([p_mat[n,k,:]])
 
-
-##In the following, I have restructured, so that k is the inner variable. This
-# should speed things up considerably. Regrettibly, the results are shit so far
+###In the following, I have restructured, so that k is the inner variable. This
+## should speed things up considerably. Regrettibly, this has not halped improve performance this far.
         for n in range(1,N+1):
             for n1 in range(1,n):
                 for p in partitionsMultiset_constrained(n,n1,4):
                     pResult = jumpProb(p,n,q_vec)
-#                    JumpProb was incorrectly calculated!
-                    # I suspect the problem is that q_n is incorrectly calculated
-                    # this was indeed the case the problem was the lack of a copy-statement
-#                    # Test
-#                    if pResult > 1.0:
-#                        print "P(",p," | %i) = %f \n q_vec[%i]=%f \n"%(n,pResult,b,q_vec[n])
                     for b1 in range(1,n1):
                         b1Result = pResult*(binom(n1,b1)**-1)
                         kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
                         for s in subpartitionsMultiset(p,b1):
 #                            b = s[1]
                             sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-                            #what is the appropriate range for k?
                             for k in kRange:
 #                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
-#                                new =  sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
-##                                testing s[1] seems to always hold?
-#                                if new == 0:
-##                                    print "\n sResult =%f \n G_mat[n1,k] =%f \n p_mat[%i,%i,%i] = %f"%(sResult,G_mat[n1,k],n1,k,b,p_mat[n1,k,b])
-#                                    print "(n,k,b,n1,b1,s[1])=(%i,%i,%i,%i,%i,%i)"%(n,k,b,n1,b1,s[1])
                                 p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
         return p_mat,G_mat
     

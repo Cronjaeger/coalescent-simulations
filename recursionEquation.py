@@ -75,6 +75,22 @@ def fourWay_ew_collisionRate(b,k,c,phi):
         # to arrange the numbers k[1],...k[len(k)]
 #        return P_k * lambda_ew_collisionRate(b,K,c,phi)
 
+def lambda_pointMass_collisionRate(b,k,phi):
+    phi = float(phi)
+    if k>b or k<2:
+        return 0.0
+    else:
+        return (phi**(k))*((1-phi)**(b-k))
+
+def fourWay_pointMass_collisionRate(b,k,phi):
+    k = [x for x in k if x>1] #remove all 1 and 0 entires from k
+    K = sum(k) #Total number of affected blocks
+    if all([i==1 for i in k]) or K > b or K < 2 :
+        return 0.0
+    else:
+        r = len(k)
+        return sum([binom(b-K,l) * lambda_pointMass_collisionRate(b,K+l,phi)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
+        
 def P_and_q(n,coalescentType,args):
     '''
         Returns
@@ -95,6 +111,12 @@ def P_and_q(n,coalescentType,args):
         return P_and_q_xi_EW(n,args)
     elif coalescentType=='xi_bottleneck':
         return P_and_q_bottleneck(n,args)
+    elif coalescentType=='lambda_pointmass':
+        return P_and_q_lambda_pointMass(n,args)
+    elif coalescentType=='xi_pointmass':
+        return P_and_q_xi_pointMass(n,args)
+    else:
+        print "Unknown coalescent-type"
 
 def P_and_q_kingman(n):
     P = np.eye(n+1,k=-1)
@@ -154,9 +176,32 @@ def P_and_q_xi_EW(N,args):
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
-                #TODO: is it appropriate to multiply with multinomial(n,p)?
-                # yes it is
                 P[n,m] += multinomial(n,p) * fourWay_ew_collisionRate(n,[k for k in p if k > 1],c,phi)
+        q[n] = sum(P[n,:])
+        P[n,:] = P[n,:]/q[n]
+    return P,q
+
+def P_and_q_lambda_pointMass(N,args):
+    phi = args[0]
+    P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
+    q = np.zeros(N+1)
+    for n in xrange(2,N+1):
+        for m in xrange(1,n):
+            P[n,m] = binom(n,n-m+1) * lambda_pointMass_collisionRate(n,n-m+1,phi)
+        q[n] = sum(P[n,:])
+        P[n,:] = P[n,:]/q[n]
+    return P,q
+
+def P_and_q_xi_pointMass(N,args):
+    phi = args[0]
+    q = np.zeros(N+1)
+    P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
+    for n in xrange(2,N+1):
+        for m in xrange(1,n):
+            for p in partitions_constrained(n,m,4):
+                P[n,m] += multinomial(n,p) * fourWay_pointMass_collisionRate(n,[k for k in p if k > 1],phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
@@ -282,10 +327,13 @@ def p_and_g(N,coalescentType,args):
     p[n,k,b] == p^{(n)}[k,b]
     supported coalescent types are:
         'kingman'
-        'xi_beta'       (args[0] = alpha)
-        'xi_ew'         (args[0] = c, args[1]=phi)
-        'lambda_beta'   (args[0] = alpha)
-        'lambda_ew'     (args[0] = c, args[1]=phi)
+        'xi_beta'           (args[0] = alpha)
+        'xi_ew'             (args[0] = c, args[1]=phi)
+        'xi_pointMass'      (args[0] = phi)
+        'lambda_beta'       (args[0] = alpha)
+        'lambda_ew'         (args[0] = c, args[1]=phi)
+        'lambda_pointMass'  (args[0] = phi)
+        
     '''
 #TODO: add support for lambda-coalescents
 
@@ -310,36 +358,13 @@ def p_and_g(N,coalescentType,args):
         return p_mat,G_mat
     
     #the case of four-way Xi-coalescents is treated
-    elif coalescentType=='xi_beta' or coalescentType=='xi_ew':
-        if coalescentType=='xi_beta':        
-            def jumpProb(part,n,q):
-                '''
-                calculates
-                P(initial jump is to a specific state with block-sizes given
-                by "part"); denoted p_lambda in my text.
-                "part" is here a partition of n encoded as a multiset,
-                i.e. part[i] == #i-blocks of part, and
-                     sum(i * part[i]) == n
-                '''
-                m = []
-                for l in [j*[i] for i,j in enumerate(part) if j!=0]:
-                    m.extend(l)
-                #do this right!
-                return multinomial(n,m)*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
-#                return 1*fourWay_beta_collisionRate(n,part,args[0]) /q[n]
-                ###JUMP PROB is calculated incorrectly!
-#                return fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]) /q[n]
-
+    elif coalescentType in set(('xi_beta','xi_ew','xi_pointmass')):
+        if coalescentType=='xi_beta':
+            jumpProb = jumpProb_xiBet
         elif coalescentType=='xi_ew':
-            def jumpProb(part,n,q):
-                '''
-                similar to the xi_beta-case
-                '''
-                m = []
-                for l in [j*[i] for i,j in enumerate(part) if j!=0]:
-                    m.extend(l)
-                #m is an encoding of part as a sequence.
-                return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q[n]
+            jumpProb = jumpProb_xiEW
+        elif coalescentType=='xi_pointmass':
+            jumpProb = jumpProb_xiPointMass
     
         #By adding np.prod to the local scope, the number of global lookups per-
         # formed in the innermost for-loop is significantly reduced.    
@@ -363,24 +388,44 @@ def p_and_g(N,coalescentType,args):
 #                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])/binom(n1,b1)
 
 ###In the following, I have restructured, so that k is the inner variable. This
-## should speed things up considerably. Regrettibly, this has not halped improve performance this far.
+### should speed things up considerably. Regrettibly, this has not halped improve performance this far.
+#        for n in range(1,N+1):
+#            for n1 in range(1,n):
+#                for p in partitionsMultiset_constrained(n,n1,4):
+#                    pResult = jumpProb(p,n,q_vec)
+#                    for b1 in range(1,n1):
+#                        b1Result = pResult*(binom(n1,b1)**-1)
+#                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
+#                        for s in subpartitionsMultiset(p,b1):
+##                            b = s[1]
+#                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
+#                            for k in kRange:
+##                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
+#                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
+
+## AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
+## for errors) Should be at least an order of magnitude slower than above
+## implementations.
         for n in range(1,N+1):
-            for n1 in range(1,n):
-                for p in partitionsMultiset_constrained(n,n1,4):
-                    pResult = jumpProb(p,n,q_vec)
-                    for b1 in range(1,n1):
-                        b1Result = pResult*(binom(n1,b1)**-1)
-                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
-                        for s in subpartitionsMultiset(p,b1):
-#                            b = s[1]
-                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-                            for k in kRange:
-#                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
-                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
+            for k in range(2,n+1):
+                for b in range(1,n-k+2):
+                    for n1 in range(k,n):
+                        n1Res = G_mat[n1,k]/G_mat[n,k]
+                        for b1 in range(1,min(b,n1-k+1)+1):
+                            b1Res = n1Res*p_mat[n1,k,b1]/binom(n1,b1)
+                            for lam in list(partitionsMultiset_constrained(n,n1,4)):
+                                lamRes = b1Res*jumpProb(lam,n,q_vec,args)
+                                ##testing
+                                jProb = jumpProb(lam,n,q_vec,args)
+                                if jProb == 0.0:
+                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
+                                
+                                for lam1 in [x for x in subpartitionsMultiset(lam,b1) if x[1]==b]:
+                                    p_mat[n,k,b] += lamRes*myProd([binom(lam[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
         return p_mat,G_mat
     
     ###CASE: Lambda-coalescents
-    elif coalescentType=='lambda_beta' or coalescentType=='lambda_ew':
+    elif coalescentType in set(('lambda_beta','lambda_ew','lambda_pointmass')):
         for n in range(1,N+1):
             for k in range(2,n+1):
                 for b in range(1,n-k+2):
@@ -392,6 +437,75 @@ def p_and_g(N,coalescentType,args):
                             res += (n1-b)/float(n1)*p_mat[n1,k,b]
                         p_mat[n,k,b] += (P_mat[n,n1]*G_mat[n1,k]/G_mat[n,k])*res
         return p_mat,G_mat
+
+def jumpProb_xiBet(part,n,q_vec,args):
+    '''
+    calculates
+    P(initial jump is to a specific state with block-sizes given
+    by "part"); denoted p_lambda in my text.
+    "part" is here a partition of n encoded as a multiset,
+    i.e. part[i] == #i-blocks of part, and
+         sum(i * part[i]) == n
+    '''
+    m = []
+    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+        m.extend(l)
+    
+    #for testing purposes
+#    a = multinomial(n,m)
+#    b = fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
+#    c = q[n]
+#    mag = 10**5
+#    if max(map(abs,[a,b,c]))/min(map(abs,[a,b,c])) > mag:
+#        print "Great differneces in magnitude when computing jump-rates \n\ta=%f\n\tb=%f\n\tc=%f\n"%(a,b,c)
+
+    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
+
+def jumpProb_xiEW(part,n,q_vec,args):
+    '''
+    similar to the xi_beta-case
+    '''
+    m = []
+    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+        m.extend(l)
+    #m is an encoding of part as a sequence.
+    return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q_vec[n]
+    
+def jumpProb_xiPointMass(part,n,q_vec,args):
+    '''
+    similar to the xi_beta-case
+    '''
+    m = []
+    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+        m.extend(l)
+    #m is an encoding of part as a sequence.
+    return multinomial(n,m)*fourWay_pointMass_collisionRate(n,m,args[0])/q_vec[n]
+
+def jumpProbTest(n,coalescentType,args,outputDist=False):
+    '''
+    verify that sum_(lam \in {partitions of n}) P(first jump from n to lam) ==1
+    Used to guage the effect of rounding errors and testing.
+    '''
+
+    if coalescentType == "xi_beta":
+        jumpProb = jumpProb_xiBet
+    elif coalescentType == "xi_ew":
+        jumpProb = jumpProb_xiEW
+    elif coalescentType == 'xi_pointMass':
+        jumpProb = jumpProb_xiPointMass
+    
+    P,q_vec = P_and_q(n,coalescentType,args)
+    
+    l = []
+    for n1 in range(1,n):
+        for lam in partitionsMultiset_constrained(n,n1,4):
+            l.append((lam,jumpProb(lam,n,q_vec,args)))
+#            print "woo",n,lam,jumpProb(lam,n,q_vec,args)
+    if outputDist:
+        return l
+    else:
+        s = [x[1] for x in l]
+        return sum(s),np.average(s),[x for x in l if x[1]==min(s) or x[1] ==max(s)]
 
 def expectedSFS(n,coalescentType,tetha,*args):
     '''The function to be called from outside this program. It returns the
@@ -407,8 +521,6 @@ def expectedSFS(n,coalescentType,tetha,*args):
     normFactor = sum([l*G_mat[n,l] for l in range(2,n+1)])*tetha/2.0
     for i in range(1,n):
         SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])        
-#       #normalizedSFS should NOT depend on the vaue of theta...
-#        normaLizedSFS[i] = SFS[i]/sum([l*G_mat[n,l] for l in range(2,n+1)])
         normaLizedSFS[i] = SFS[i]/normFactor
     return SFS,normaLizedSFS,p_mat,G_mat
 

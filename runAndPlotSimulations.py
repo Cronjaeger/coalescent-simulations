@@ -17,12 +17,13 @@ import matplotlib.pyplot as pl
 n = 10
 theta = 4.
 trials = 1000
-beta = 1.6
-psi = .6
+beta = 1.0
+psi = .3
 c = 1. # other values of c are probably not that relevant.
 T_max = float('inf')
-#coalescentType = 'xi_beta'
-coalescentType = 'xi_pointMass'
+coalescentType = 'xi_beta'
+#coalescentType = 'xi_pointMass'
+#coalescentType = 'xi_lambda_beta'
 
 Pi_1 = []
 Pi_2 = []
@@ -35,7 +36,7 @@ if coalescentType == 'xi_beta':
     P,q = re.P_and_q_lambda_beta(n,(beta,))
     for i in range(trials):
         Pi_2.append(lc.simulateLambdaBeta_FourWay(n,theta/2.,T_max,beta,P,q))
-elif coalescentType == 'lambda_beta':
+elif coalescentType == 'lambda_beta' or coalescentType=='xi_lambda_beta':
     P,q = re.P_and_q_lambda_beta(n,(beta,))
     for i in range(trials):
         Pi_2.append(lc.simulateLambdaBeta(n,theta/2.,T_max,beta,P,q))
@@ -45,7 +46,7 @@ elif coalescentType =='xi_ew':
 elif coalescentType == 'lambda_ew':
     for i in range(trials):
         Pi_2.append(lc.simulateLambdaEldonWakely_FourWay(n,theta/2.,T_max,psi))
-elif coalescentType == 'kingman':
+elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
     for i in range(trials):
         Pi_2.append(lc.simulateKingman(n,theta/2.,T_max))
 elif coalescentType == 'lambda_pointmass':
@@ -59,11 +60,11 @@ print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
 
 print "computing expected average normalized SFS from recursion equation..."
 t1 = time.time()
-if coalescentType == 'xi_beta' or coalescentType == 'lambda_beta':
+if coalescentType in set(['xi_beta','lambda_beta','xi_lambda_beta']):
     xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,beta)
 elif coalescentType == 'xi_ew' or coalescentType == 'lambda_ew':
     xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,c,psi)
-elif coalescentType == 'kingman':
+elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
     xi,phi,p,g = re.expectedSFS(n,coalescentType,theta)
 elif coalescentType == 'xi_pointmass' or coalescentType == 'lambda_pointmass':
     xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,psi)
@@ -282,3 +283,23 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 #thrLength = sum(l*g[n,l] for l in range(2,n+1))
 
 #print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelative error:\t%f"%(empLength,thrLength,abs(empLength -thrLength)/thrLength)
+
+#Test 6
+# Run the same coalescent "xi_pointmass" for different ranges of parameters
+#
+#coalescentType = 'xi_pointmass'
+#n,theta = 10,2.
+#psiList = [i/20. for i in range(1,21)]
+##psiList = []
+#K = len(psiList)
+#x = np.arange(1,n)
+#xi,phi,p,g,labels = [False]*K,[False]*K,[False]*K,[False]*K,[False]*K
+#for i,psi in enumerate(psiList):
+#    xi[i],phi[i],p[i],g[i] = re.expectedSFS(n,coalescentType,theta,psi)
+#    labels[i] = "Lambda = dirac_%s"%(str(round(psi,2)))
+#for i in range(len(psiList)):
+#    pl.plot(x , phi[i][1:] , label=labels[i])
+
+
+    
+    

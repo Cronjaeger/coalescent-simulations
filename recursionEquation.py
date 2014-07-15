@@ -4,13 +4,176 @@ Created on Tue May 13 13:02:17 2014
 
 @author: mathias
 """
-
-## Functions for computing SFS statistics explicitly.
 import numpy as np
+
+import mpmath as mp
+#Multiple precision arithmetics. Availiable at http://mpmath.org/
+
 from scipy.special import binom
 from scipy.special import beta as Beta #lower-case beta is the beta-distribution in the numpy package
 #from itertools import product, izip, ifilter
 from copy import copy
+
+def partitionTest(x,n):
+    '''
+    Verify if a given sequence is a partition of N, sorted in descending order
+    '''
+    isSorted = all([earlier >= later for earlier, later in zip(x, x[1:])])
+    sumEqualsN = sum(x) == n
+    return isSorted and sumEqualsN
+
+#def partitionRecursion(n,n1,i,part):
+#    if i == 1:
+#        return part.append(n-sum(part))
+#    else:
+#        for k in range(([1]+part)[-1],int((n-sum(part))//i)+1):
+#            print i,part,k
+#            npart = partitionRecursion(n,n1,i-1,copy(part)+[k])
+#        if i==n1:
+#            return npart
+
+def partitions(n,n1):
+    '''Outputs the set {x : x is a partition of n into n1 parts}.
+    The partitions are generated in lexicographical order, but
+    returned as a set (a data-structure without ordering) for
+    optimization purposes'''
+    if n1==1:
+#        return set([(n,)])
+        return [(n,)]
+    else:
+#        P = set()
+        P = []
+        for i in xrange(1,n//n1+1):
+            buildPartitions((i,),i,P,n,n1,1,i)
+        return P
+
+def buildPartitions(part,last,P,n,n1,Len,Sum):
+    ''''A recursive function used to generate all partitions of n into N parts (note this implementation does not handle the case n1 == 1 correctly'''
+    if Len == n1-1:
+#        P.add(part+(n-Sum,))
+        P.append(part+(n-Sum,))
+    else:
+        for i in xrange(last,(n-Sum)//(n1-Len)+1):
+            buildPartitions(part+(i,),i,P,n,n1,Len+1,Sum+i)
+
+def partitionsMultiset(n,n1):
+    '''
+    Works similar to partitions(n,n1), but the partitions returned are encoded as multisets encoded as lists; e.g. the partition p=(1,1,1,2,5) of 10 would be encoded p_mul=(0,3,1,0,0,1,0,0,0,0,0), the idea being p_mul[i] == p.count(i)
+    '''
+    if n1 ==1:
+#        return set(tuple([int(j==n) for j in xrange(n+1)]))
+        return [tuple([int(j==n) for j in xrange(n+1)])]
+    else:
+#        P = set()
+        P = []
+        for i in xrange(1,n//n1+1):
+            buildPartitionsMultiset(tuple([int(j==i) for j in xrange(n+1)]),i,P,n,n1,1,i)
+        return P
+
+def buildPartitionsMultiset(part,last,P,n,n1,Len,Sum):
+    if Len == n1-1:
+        i = n-Sum
+#        P.add(tuple([part[j] + int(i==j) for j in xrange(len(part))]))
+        P.append(tuple([part[j] + int(i==j) for j in xrange(len(part))]))
+    else:
+        for i in xrange(last,(n-Sum)//(n1-Len)+1):
+#            npart = list(part)
+#            npart[i] += 1
+#            buildPartitionsMultiset(tuple(npart),i,P,n,n1,Len+1,Sum+i)
+            buildPartitionsMultiset(tuple([part[j] + int(i==j) for j in xrange(len(part))]),i,P,n,n1,Len+1,Sum+i)
+
+def partitionsMultiset_constrained(n,n1,maxBigBlocks):
+    "exactly like Partitions-multiset, only the total number of non-singleton blocks is constrained"
+    if n1 ==1:
+#        P = set()
+#        P.add(tuple([int(j==n) for j in xrange(n+1)]))
+        P = []
+        P.append(tuple([int(j==n) for j in xrange(n+1)]))
+        return P
+    else:
+#        P = set()
+        P = []
+        singletonBlocks = max(n1 - maxBigBlocks,0)
+        initialPart = [0,singletonBlocks]+(n-1)*[0]
+        for i in xrange(1,(n-singletonBlocks)//(n1-singletonBlocks)+1):
+            buildPartitionsMultiset(tuple([initialPart[j] + int(j==i) for j in xrange(n+1)]),i,P,n,n1,1+singletonBlocks,i+singletonBlocks)
+        return P
+
+def partitions_constrained(n,n1,maxBigBlocks):
+    if n1 ==1:
+#        P = set()
+        P = []
+#        P.add((n,))
+        P.append((n,))
+        return P
+    else:
+#        P = set()
+        P = []
+        singletonBlocks = max(n1 - maxBigBlocks,0)
+        initialPart = singletonBlocks*[1]
+        for i in xrange(1,(n-singletonBlocks)//(n1-singletonBlocks)+1):
+            buildPartitions(tuple(initialPart + [i]),i,P,n,n1,1+singletonBlocks,i+singletonBlocks)
+        return P
+
+def subpartitionsMultiset(part,b1):
+    '''
+    returns all subpartitions of the partitions Part (encoded as a multiset),
+    that can be generated, by taking exactly b1 blocks from "part". The
+    returned partitions are encoded as multisets.
+
+    Each subpartiton is encoded (s,sum), where s is a multiset-encoding of the
+    sub-partition, and "sum" is the sum of the block-sizes. "sum" is passed on
+    as a result, so that It does not have to be calculated separately at a
+    later point in time.
+    '''
+    n = len(part)
+    if b1==n:
+#        subP = set()
+        subP = []
+    
+#        subP.add((part,sum([i*j for i,j in enumerate(part)])))
+        subP.append((part,sum([i*j for i,j in enumerate(part)])))
+        return subP
+    else:
+#        subP = set()
+        subP = []
+        #TODO: at the moment this mmethod adds the same subpartitions multiple times. it is not efficient. a temporary fix has been made.
+        for i in (j for j in xrange(n) if part[j] != 0):
+#        for i in xrange(n):
+#            if part[i] != 0:
+            buildSubPartMulti(tuple([part[j] - int(j==i) for j in xrange(n)]),tuple([int(j==i) for j in xrange(n)]),n,b1-1,i,subP)
+        return list(set(subP)) #a hack to remove duplicate entries. The code is not very efficient
+
+def buildSubPartMulti(origPart,subPart,n,toGo,Sum,subP):
+    if toGo==0:
+#        subP.add((subPart,Sum))
+        subP.append((subPart,Sum))
+    else:
+        for i in (j for j in xrange(n) if origPart[j] != 0):
+#        for i in xrange(n):
+#            if origPart[i] != 0:
+            buildSubPartMulti(tuple([origPart[j] - int(j==i) for j in xrange(n)]),tuple([subPart[j] + int(j==i) for j in xrange(n)]),n,toGo-1,Sum+i,subP)
+
+def subpartitionProb(part,subpart,n1,b1,verify=True):
+    '''
+    IN:
+        part,n1:     "part" is a (multiset-) partition (of n into n1 parts)
+        subpart,b1:  "subpart" is a (multiset-) partition (of b into b1 parts)
+        verify:     Should we check if subpart is a partition of part., and
+                    re-calculate b1 and b2
+    OUT:
+        p:          Probability that one obtains "subpart" by picking b1 blocks
+                    from "part"
+    '''
+    #verify that part subsumes subpart
+
+    if verify:
+        n1 = sum(part)
+        b1 = sum(subpart)
+        if not (b1<=n1 and all([x[1] <= x[0] for x in zip(part,subpart)])):
+            print "%s does not subsume %s"%(str(part),str(subpart))
+            return 0.0
+    return np.prod([binom(x[0],x[1]) for x in zip(part,subpart)])/binom(n1,b1)
 
 def lambda_beta_collisionRate(b,k,alpha):
     if k > b or k < 2:
@@ -99,9 +262,9 @@ def P_and_q(n,coalescentType,args):
         
     '''
     coalescentType = str.lower(coalescentType)
-    if coalescentType=='kingman':
+    if coalescentType=='kingman' or coalescentType=='xi_kingman':
         return P_and_q_kingman(n)
-    elif coalescentType=='lambda_beta':
+    elif coalescentType=='lambda_beta' or coalescentType=='xi_lambda_beta':
         return P_and_q_lambda_beta(n,args)
     elif coalescentType=='xi_beta':
         return P_and_q_xi_beta(n,args)
@@ -140,17 +303,37 @@ def P_and_q_lambda_beta(N,args):
     return P,q
     
 def P_and_q_xi_beta(N,args):
-#    print "args=",args
-    alpha = args[0]
-    P = np.zeros((N+1,N+1))
-    P[1,1] = 1.
-    q = np.zeros(N+1)
-    for n in xrange(2,N+1):
-        for m in xrange(1,n):
-            for p in partitions_constrained(n,m,4):
-                P[n,m] += multinomial(n,p) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
-        q[n] = sum(P[n,:])
-        P[n,:] = P[n,:]/q[n]
+#Old. implementation using floating point arithmetics
+#    alpha = args[0]
+#    P = np.zeros((N+1,N+1))
+#    P[1,1] = 1.
+#    q = np.zeros(N+1)
+#    for n in xrange(2,N+1):
+#        for m in xrange(1,n):
+#            for p in partitions_constrained(n,m,4):
+#                P[n,m] += multinomial(n,p) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
+#        q[n] = sum(P[n,:])
+#        P[n,:] = P[n,:]/q[n]
+#    return P,q
+
+# attempt to implement using multiple-precision arithmetics
+    decimalPlaces = 100
+    with mp.workdps(decimalPlaces):
+        alpha = args[0]
+        P = np.zeros((N+1,N+1))
+        P[1,1] = 1.
+        q = np.zeros(N+1)
+        Q_mat = [ [ [] for j in range(N+1) ] for i in xrange(N+1)]
+        for n in range(2,N+1):
+            for m in range(1,n):
+                for p in partitions_constrained(n,m,4):
+                    q_p = multinomial(n,p,multiplePrecision=True) * mp.mpf(fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha))
+                    Q_mat[n][m].append(q_p)
+            q_n = sum(map(sum,Q_mat[n]))
+            q[n] = float(q_n)
+            for m in range(1,n):
+                p_nm = sum(Q_mat[n][m])/q_n
+                P[n,m] = float(p_nm)
     return P,q
 
 def P_and_q_lambda_EW(N,args):
@@ -300,19 +483,26 @@ def g_ratio(k,G):
     g_gRatio = np.concatenate((np.zeros(k),G[k:n+1,k]),1)
     return g_gRatio * G[n,k]**(-1)
     
-def multinomial(n,m):
+def multinomial(n,m,multiplePrecision=False,decimalPlaces=40):
     '''
     n = int
     m = list of integers summing to n
     '''
-    #TODO: re-implment binom myself, if the standard turns out to be too slow/inacurate
     mybinom = binom
-    if sum(m) != n:
-        return 0
-    else:
-#        if len(m)==1: m = list(m)+[0] #else the reduce statement does not work
-#        return reduce(lambda x,y:x*y,[mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
-        return np.prod([mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
+    if multiplePrecision: #use multiple-precision arithmetics
+        with mp.workdps(decimalPlaces):
+            if sum(m) != n:
+                return mp.mpf('0.0')
+            else:
+                return np.prod([mp.mpf(mybinom(sum(m[i:]),m[i])) for i in xrange(len(m)-1)])
+    else: #use floating-point arithmetics
+        if sum(m) != n:
+            return 0.0
+        else:
+    #        if len(m)==1: m = list(m)+[0] #else the reduce statement does not work
+    #        return reduce(lambda x,y:x*y,[mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
+            return np.prod([mybinom(sum(m[i:]),m[i]) for i in xrange(len(m)-1)])
+    
 
 
 ##OLD
@@ -335,7 +525,6 @@ def p_and_g(N,coalescentType,args):
         'lambda_pointMass'  (args[0] = phi)
         
     '''
-#TODO: add support for lambda-coalescents
 
     #compute constants:
     P_mat,q_vec = P_and_q(N,coalescentType,args)
@@ -358,17 +547,23 @@ def p_and_g(N,coalescentType,args):
         return p_mat,G_mat
     
     #the case of four-way Xi-coalescents is treated
-    elif coalescentType in set(('xi_beta','xi_ew','xi_pointmass')):
+    elif coalescentType in set(('xi_beta','xi_ew','xi_pointmass','xi_kingman','xi_lambda_beta')):
         if coalescentType=='xi_beta':
             jumpProb = jumpProb_xiBet
         elif coalescentType=='xi_ew':
             jumpProb = jumpProb_xiEW
         elif coalescentType=='xi_pointmass':
             jumpProb = jumpProb_xiPointMass
+        elif coalescentType=='xi_kingman':
+            jumpProb = jumpProb_xiKingman
+        elif coalescentType=='xi_lambda_beta':
+            jumpProb = jumpProb_xi_lambda_beta
+            args = (P_mat,)
     
-        #By adding np.prod to the local scope, the number of global lookups per-
+        #By adding functions to the local scope, the number of global lookups per-
         # formed in the innermost for-loop is significantly reduced.    
         myProd = np.prod
+        mySubpartitionProb = subpartitionProb
         
 #        # we now iterate over n (first axis of p), and fill out the rest of p
 #        for n in range(1,N+1):
@@ -387,41 +582,46 @@ def p_and_g(N,coalescentType,args):
 #                            for s in subpartitionsMultiset(p,b1):
 #                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])/binom(n1,b1)
 
-###In the following, I have restructured, so that k is the inner variable. This
-### should speed things up considerably. Regrettibly, this has not halped improve performance this far.
-#        for n in range(1,N+1):
-#            for n1 in range(1,n):
-#                for p in partitionsMultiset_constrained(n,n1,4):
-#                    pResult = jumpProb(p,n,q_vec)
-#                    for b1 in range(1,n1):
-#                        b1Result = pResult*(binom(n1,b1)**-1)
-#                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
-#                        for s in subpartitionsMultiset(p,b1):
-##                            b = s[1]
-#                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-#                            for k in kRange:
-##                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
-#                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]*(G_mat[n1,k]/G_mat[n,k])
-
-## AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
-## for errors) Should be at least an order of magnitude slower than above
-## implementations.
+##In the following, I have restructured, so that k is the inner variable. This
+## should speed things up considerably. Regrettibly, this has not halped improve performance this far.
         for n in range(1,N+1):
-            for k in range(2,n+1):
-                for b in range(1,n-k+2):
-                    for n1 in range(k,n):
-                        n1Res = G_mat[n1,k]/G_mat[n,k]
-                        for b1 in range(1,min(b,n1-k+1)+1):
-                            b1Res = n1Res*p_mat[n1,k,b1]/binom(n1,b1)
-                            for lam in list(partitionsMultiset_constrained(n,n1,4)):
-                                lamRes = b1Res*jumpProb(lam,n,q_vec,args)
-                                ##testing
-                                jProb = jumpProb(lam,n,q_vec,args)
-                                if jProb == 0.0:
-                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
-                                
-                                for lam1 in [x for x in subpartitionsMultiset(lam,b1) if x[1]==b]:
-                                    p_mat[n,k,b] += lamRes*myProd([binom(lam[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
+            for n1 in range(1,n):
+                for p in partitionsMultiset_constrained(n,n1,4):
+                    pResult = mp.mpf(jumpProb(p,n,q_vec,args))
+                    for b1 in range(1,n1):
+#                        b1Result = pResult*(binom(n1,b1)**-1)
+                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
+                        for s in subpartitionsMultiset(p,b1):
+#                            b = s[1]
+#                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
+                            sResult = pResult*mp.mpf(mySubpartitionProb(p,s[0],n1,b1,verify=True))
+                            for k in kRange:
+#                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
+                                p_mat[n,k,s[1]] += sResult*mp.mpf(p_mat[n1,k,b1])*(mp.mpf(G_mat[n1,k])/mp.mpf(G_mat[n,k]))
+#                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]
+
+### AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
+### for errors) Should be at least an order of magnitude slower than above
+### implementations.
+#        for n in range(1,N+1):
+#            for k in range(2,n+1):
+#                for b in range(1,n-k+2):
+#                    for n1 in range(k,n):
+#                        n1Res = G_mat[n1,k]/G_mat[n,k]
+#
+#                        for b1 in range(1,min(b,n1-k+1)+1):
+#                            b1Res = n1Res*p_mat[n1,k,b1]/binom(n1,b1)
+#
+#                            for lam in partitionsMultiset_constrained(n,n1,4):
+#                                lamRes = b1Res*jumpProb(lam,n,q_vec,args)
+#
+##                                ##testing
+##                                jProb = jumpProb(lam,n,q_vec,args)
+##                                if jProb == 0.0:
+##                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
+#                                for lam1 in [x for x in subpartitionsMultiset(lam,b1) if x[1]==b]:
+#                                    p_mat[n,k,b] += lamRes*myProd([binom(lam[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
+
         return p_mat,G_mat
     
     ###CASE: Lambda-coalescents
@@ -441,7 +641,7 @@ def p_and_g(N,coalescentType,args):
 def jumpProb_xiBet(part,n,q_vec,args):
     '''
     calculates
-    P(initial jump is to a specific state with block-sizes given
+    P(initial jump is to a state with block-sizes given
     by "part"); denoted p_lambda in my text.
     "part" is here a partition of n encoded as a multiset,
     i.e. part[i] == #i-blocks of part, and
@@ -450,16 +650,12 @@ def jumpProb_xiBet(part,n,q_vec,args):
     m = []
     for l in [j*[i] for i,j in enumerate(part) if j!=0]:
         m.extend(l)
-    
-    #for testing purposes
-#    a = multinomial(n,m)
-#    b = fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
-#    c = q[n]
-#    mag = 10**5
-#    if max(map(abs,[a,b,c]))/min(map(abs,[a,b,c])) > mag:
-#        print "Great differneces in magnitude when computing jump-rates \n\ta=%f\n\tb=%f\n\tc=%f\n"%(a,b,c)
 
-    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
+    #modified to work with multiple Precision arithmetics
+    return (multinomial(n,m,multiplePrecision=True)/mp.mpf(q_vec[n]))*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]))
+
+    #Works in floating-point arithmetics
+#    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
 
 def jumpProb_xiEW(part,n,q_vec,args):
     '''
@@ -481,24 +677,53 @@ def jumpProb_xiPointMass(part,n,q_vec,args):
     #m is an encoding of part as a sequence.
     return multinomial(n,m)*fourWay_pointMass_collisionRate(n,m,args[0])/q_vec[n]
 
+def jumpProb_xiKingman(part,n,q_vec,args):
+    '''
+        calculates jump-probabilities of kingmans coalescent seen as a
+        xi -coalescent
+    '''
+    if part[1]==n-2 and part[2]==1:
+        return 1.
+    else:
+        return 0
+
+def jumpProb_xi_lambda_beta(part,n,q_vec,args):
+    '''
+        Calculates the probability that the first jump of a beta coalescent is
+        to the partition "part".
+        used to check recursion-formula.
+        args[0] = P
+    '''
+    if sum(part[2:])==1:
+        k = part[2:].index(1) + 2
+        n1 = n - k + 1
+        return args[0][n,n1]
+    else:
+        return 0
+
 def jumpProbTest(n,coalescentType,args,outputDist=False):
     '''
     verify that sum_(lam \in {partitions of n}) P(first jump from n to lam) ==1
     Used to guage the effect of rounding errors and testing.
     '''
 
-    if coalescentType == "xi_beta":
-        jumpProb = jumpProb_xiBet
-    elif coalescentType == "xi_ew":
-        jumpProb = jumpProb_xiEW
-    elif coalescentType == 'xi_pointMass':
-        jumpProb = jumpProb_xiPointMass
-    
     P,q_vec = P_and_q(n,coalescentType,args)
-    
+
+    if coalescentType=='xi_beta':
+        jumpProb = jumpProb_xiBet
+    elif coalescentType=='xi_ew':
+        jumpProb = jumpProb_xiEW
+    elif coalescentType=='xi_pointmass':
+        jumpProb = jumpProb_xiPointMass
+    elif coalescentType=="xi_kingman":
+        jumpProb = jumpProb_xiKingman
+    elif coalescentType == 'xi_lambda_beta':
+        jumpProb = jumpProb_xi_lambda_beta
+        args = (P,)
+        
     l = []
     for n1 in range(1,n):
-        for lam in partitionsMultiset_constrained(n,n1,4):
+        for lam in list(partitionsMultiset_constrained(n,n1,4)):
             l.append((lam,jumpProb(lam,n,q_vec,args)))
 #            print "woo",n,lam,jumpProb(lam,n,q_vec,args)
     if outputDist:
@@ -523,125 +748,3 @@ def expectedSFS(n,coalescentType,tetha,*args):
         SFS[i] = tetha/2.0 * sum([p_mat[n,k,i]*k*G_mat[n,k] for k in range(2,n-i+2)])        
         normaLizedSFS[i] = SFS[i]/normFactor
     return SFS,normaLizedSFS,p_mat,G_mat
-
-def partitionTest(x,n):
-    '''
-    Verify if a given sequence is a partition of N, sorted in descending order
-    '''
-    isSorted = all([earlier >= later for earlier, later in zip(x, x[1:])])
-    sumEqualsN = sum(x) == n
-    return isSorted and sumEqualsN
-
-#def partitionRecursion(n,n1,i,part):
-#    if i == 1:
-#        return part.append(n-sum(part))
-#    else:
-#        for k in range(([1]+part)[-1],int((n-sum(part))//i)+1):
-#            print i,part,k
-#            npart = partitionRecursion(n,n1,i-1,copy(part)+[k])
-#        if i==n1:
-#            return npart
-
-def partitions(n,n1):
-    '''Outputs the set {x : x is a partition of n into n1 parts}.
-    The partitions are generated in lexicographical order, but
-    returned as a set (a data-structure without ordering) for
-    optimization purposes'''
-    if n1==1:
-        return set([(n,)])
-    else:
-        P = set()
-        for i in xrange(1,n//n1+1):
-            buildPartitions((i,),i,P,n,n1,1,i)
-        return P
-
-def buildPartitions(part,last,P,n,n1,Len,Sum):
-    ''''A recursive function used to generate all partitions of n into N parts (note this implementation does not handle the case n1 == 1 correctly'''
-    if Len == n1-1:
-        P.add(part+(n-Sum,))
-    else:
-        for i in xrange(last,(n-Sum)//(n1-Len)+1):
-            buildPartitions(part+(i,),i,P,n,n1,Len+1,Sum+i)
-
-def partitionsMultiset(n,n1):
-    '''
-    Works similar to partitions(n,n1), but the partitions returned are encoded as multisets encoded as lists; e.g. the partition p=(1,1,1,2,5) of 10 would be encoded p_mul=(0,3,1,0,0,1,0,0,0,0,0), the idea being p_mul[i] == p.count(i)
-    '''
-    if n1 ==1:
-        return set(tuple([int(j==n) for j in xrange(n+1)]))
-    else:
-        P = set()
-        for i in xrange(1,n//n1+1):
-            buildPartitionsMultiset(tuple([int(j==i) for j in xrange(n+1)]),i,P,n,n1,1,i)
-        return P
-
-def buildPartitionsMultiset(part,last,P,n,n1,Len,Sum):
-    if Len == n1-1:
-        i = n-Sum
-        P.add(tuple([part[j] + int(i==j) for j in xrange(len(part))]))
-    else:
-        for i in xrange(last,(n-Sum)//(n1-Len)+1):
-#            npart = list(part)
-#            npart[i] += 1
-#            buildPartitionsMultiset(tuple(npart),i,P,n,n1,Len+1,Sum+i)
-            buildPartitionsMultiset(tuple([part[j] + int(i==j) for j in xrange(len(part))]),i,P,n,n1,Len+1,Sum+i)
-
-def partitionsMultiset_constrained(n,n1,maxBigBlocks):
-    "exactly like Partitions-multiset, only the total number of non-singleton blocks is constrained"
-    if n1 ==1:
-        P = set()
-        P.add(tuple([int(j==n) for j in xrange(n+1)]))
-        return P
-    else:
-        P = set()
-        singletonBlocks = max(n1 - maxBigBlocks,0)
-        initialPart = [0,singletonBlocks]+(n-1)*[0]
-        for i in xrange(1,(n-singletonBlocks)//(n1-singletonBlocks)+1):
-            buildPartitionsMultiset(tuple([initialPart[j] + int(j==i) for j in xrange(n+1)]),i,P,n,n1,1+singletonBlocks,i+singletonBlocks)
-        return P
-
-def partitions_constrained(n,n1,maxBigBlocks):
-    if n1 ==1:
-        P = set()
-        P.add((n,))
-        return P
-    else:
-        P = set()
-        singletonBlocks = max(n1 - maxBigBlocks,0)
-        initialPart = singletonBlocks*[1]
-        for i in xrange(1,(n-singletonBlocks)//(n1-singletonBlocks)+1):
-            buildPartitions(tuple(initialPart + [i]),i,P,n,n1,1+singletonBlocks,i+singletonBlocks)
-        return P
-
-def subpartitionsMultiset(part,b1):
-    '''
-    returns all subpartitions of the partitions Part (encoded as a multiset),
-    that can be generated, by taking exactly b1 blocks from "part". The
-    returned partitions are encoded as multisets.
-
-    Each subpartiton is encoded (s,sum), where s is a multiset-encoding of the
-    sub-partition, and "sum" is the sum of the block-sizes. "sum" is passed on
-    as a result, so that It does not have to be calculated separately at a
-    later point in time.
-    '''
-    n = len(part)
-    if b1==n:
-        subP = set()
-        subP.add((part,sum([i*j for i,j in enumerate(part)])))
-        return [part]
-    else:
-        subP = set()
-        for i in (j for j in xrange(n) if part[j] != 0):
-#        for i in xrange(n):
-#            if part[i] != 0:
-            buildSubPartMulti(tuple([part[j] - int(j==i) for j in xrange(n)]),tuple([int(j==i) for j in xrange(n)]),n,b1-1,i,subP)
-        return subP
-
-def buildSubPartMulti(origPart,subPart,n,toGo,Sum,subP):
-    if toGo==0:
-        subP.add((subPart,Sum))
-    else:
-        for i in (j for j in xrange(n) if origPart[j] != 0):
-#        for i in xrange(n):
-#            if origPart[i] != 0:
-            buildSubPartMulti(tuple([origPart[j] - int(j==i) for j in xrange(n)]),tuple([subPart[j] + int(j==i) for j in xrange(n)]),n,toGo-1,Sum+i,subP)

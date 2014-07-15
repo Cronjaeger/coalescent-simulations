@@ -389,7 +389,10 @@ class simExchCoalWithMut(object):
 class simulateKingman(simExchCoalWithMut):
     '''args[0] = merger-rate of two fixed lineages'''
     def sampleJumps(self):
-        rate=self.args[0]
+        if len(self.args) > 0 :
+            rate=self.args[0]
+        else:
+            rate = 1
         return self.sampleJumps_Kingman(rate)
 
 class simulateLambdaPoint(simExchCoalWithMut):

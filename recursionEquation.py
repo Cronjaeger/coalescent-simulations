@@ -450,10 +450,10 @@ def G(P,q_diag):
     G(P,q_diag)[n,m] == g(n,m)
     computed using the recursion:
     g(m,m) = 1/-q_{m,m}
-    n>=m>1 implies g(n,m) = Sum_{k=m}^{n-1} P _{n,k}*g(k,m)
+    n>=m>1 implies g(n,m) = Sum_{k=m}^{n-1} P_{n,k}*g(k,m)
 
     Inputs:
-    P[i,j] = P_{i+1,j+1} (transition matrix of a markov chain)
+    P[i,j] = P_{i,j} (transition matrix of a markov chain)
     q_diag[i] = -q_(i,i) (vacation rate of the block-counting process)
     '''
 #    q = np.r_[np.array([[0],[float('inf')]]),q_diag]
@@ -463,16 +463,17 @@ def G(P,q_diag):
 #    N = P.shape[1] + 1
     N_G = len(q_G)
 #    G = np.eye(N).dot(q)
-    G_G = np.eye(N_G)
+    G_G = np.diag(q_G)
     # G[n,m] = g(n,m)
     
     #compute G under the assumption that G[m,m] == 1 for all m
     for n in range(2,N_G):
-        for m in range(n-1,1,-1):
-            G_G[n,m] = float(P[n-1,m-1:n-1].dot(G_G[m:n,m]))
+#        for m in range(n-1,1,-1):
+        for m in range(2,n):
+            G_G[n,m] = float(P[n,m:n].dot(G_G[m:n,m]))
     
     # scale row m of G by a factor of 1/-q_(m ,m)
-    G_G = G_G.dot(np.diag(q_G,0))
+#    G_G = G_G.dot(np.diag(q_G,0))
     return G_G
     
 def g_ratio(k,G):
@@ -724,7 +725,7 @@ def jumpProbTest(n,coalescentType,args,outputDist=False):
     l = []
     for n1 in range(1,n):
         for lam in list(partitionsMultiset_constrained(n,n1,4)):
-            l.append((lam,jumpProb(lam,n,q_vec,args)))
+            l.append((lam,float(jumpProb(lam,n,q_vec,args))))
 #            print "woo",n,lam,jumpProb(lam,n,q_vec,args)
     if outputDist:
         return l

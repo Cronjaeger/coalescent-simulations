@@ -8,7 +8,7 @@ import numpy as np
 
 import mpmath as mp
 #Multiple precision arithmetics. Availiable at http://mpmath.org/
-
+from math import factorial
 from scipy.special import binom
 from scipy.special import beta as Beta #lower-case beta is the beta-distribution in the numpy package
 #from itertools import product, izip, ifilter
@@ -175,6 +175,17 @@ def subpartitionProb(part,subpart,n1,b1,verify=True):
             return 0.0
     return np.prod([binom(x[0],x[1]) for x in zip(part,subpart)])/binom(n1,b1)
 
+def partitionToMultiset(part):
+    '''
+        input: a partition encoded as a non-ascending sequence
+        output: the multiset-encoding of the input-partition
+        
+        example:
+        part = (4,2,1,1,1) partition of 9
+        partitionToMultiset(part) = (0,3,1,0,1,0,0,0,0,0)
+    '''
+    return tuple([part.count(i) for i in range(sum(part)+1)])
+
 def lambda_beta_collisionRate(b,k,alpha):
     if k > b or k < 2:
         return 0
@@ -189,6 +200,7 @@ def fourWay_beta_collisionRate(b,k,alpha):
     '''
     k = [x for x in k if x>1] #remove all 1 and 0 entires from k
     K = sum(k) #Total number of affected blocks
+#    print b,k,K
     if all([i==1 for i in k]) or K > b or K < 2 :
         return 0
     else:
@@ -304,36 +316,44 @@ def P_and_q_lambda_beta(N,args):
     
 def P_and_q_xi_beta(N,args):
 #Old. implementation using floating point arithmetics
-#    alpha = args[0]
-#    P = np.zeros((N+1,N+1))
-#    P[1,1] = 1.
-#    q = np.zeros(N+1)
-#    for n in xrange(2,N+1):
-#        for m in xrange(1,n):
-#            for p in partitions_constrained(n,m,4):
-#                P[n,m] += multinomial(n,p) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
-#        q[n] = sum(P[n,:])
-#        P[n,:] = P[n,:]/q[n]
-#    return P,q
+    alpha = args[0]
+    P = np.zeros((N+1,N+1))
+    P[1,1] = 1.
+    q = np.zeros(N+1)
+    for n in xrange(2,N+1):
+        for m in xrange(1,n):
+            for p in partitions_constrained(n,m,4):
+                p_mul = partitionToMultiset(p)
+                P[n,m] += (multinomial(n,p)/np.prod(map(factorial, p_mul))) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
+        q[n] = sum(P[n,:])
+        P[n,:] = P[n,:]/q[n]
+    return P,q
 
-# attempt to implement using multiple-precision arithmetics
-    decimalPlaces = 100
-    with mp.workdps(decimalPlaces):
-        alpha = args[0]
-        P = np.zeros((N+1,N+1))
-        P[1,1] = 1.
-        q = np.zeros(N+1)
-        Q_mat = [ [ [] for j in range(N+1) ] for i in xrange(N+1)]
-        for n in range(2,N+1):
-            for m in range(1,n):
-                for p in partitions_constrained(n,m,4):
-                    q_p = multinomial(n,p,multiplePrecision=True) * mp.mpf(fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha))
-                    Q_mat[n][m].append(q_p)
-            q_n = sum(map(sum,Q_mat[n]))
-            q[n] = float(q_n)
-            for m in range(1,n):
-                p_nm = sum(Q_mat[n][m])/q_n
-                P[n,m] = float(p_nm)
+## attempt to implement using multiple-precision arithmetics
+#    P_lambdaTest,q_lambdaTest = P_and_q_lambda_beta(N,args)
+#    decimalPlaces = 100
+#    with mp.workdps(decimalPlaces):
+#        alpha = args[0]
+#        P = np.zeros((N+1,N+1))
+#        P[1,1] = 1.
+#        q = np.zeros(N+1)
+#        Q_mat = [ [ [] for j in range(N+1) ] for i in xrange(N+1)]
+#        for n in range(2,N+1):
+#            for m in range(1,n):
+#                for p in partitions_constrained(n,m,4):
+##                    q_p = multinomial(n,p,multiplePrecision=True) * mp.mpf(fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha))
+#                    p_mul = tuple([p.count(i) for i in range(n+1)])
+#                    q_p = multinomial(n,p,multiplePrecision=True) * mp.mpf(fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)) / np.prod(map(mp.fac,p_mul))
+#                    Q_mat[n][m].append(q_p)
+#            q_n = sum(map(sum,Q_mat[n]))
+#            q[n] = float(q_n)
+#
+#            if q[n] > q_lambdaTest[n]:
+#                print "Error! For n=%i q_xi > q_lambda\n\tq_xi=%f\n\tq_lambda=%f\n"%(n,q[n],q_lambdaTest[n])
+#            for m in range(1,n):
+#                p_nm = sum(Q_mat[n][m])/(q_n)
+##                p_nm = sum(Q_mat[n][m])/(q_n*mp.fac(n-2))
+#                P[n,m] = float(p_nm)
     return P,q
 
 def P_and_q_lambda_EW(N,args):
@@ -435,7 +455,7 @@ def reciprocal(x):
     IN : x (number)
     OUT: x_inv, where x_inv = x^-1 if x!=0; x_inv = 0 if x=0
     '''
-    #TODO: it seems more appropriate to set 0^-1 to float('inf'). Does this break anything?
+#    TODO: it seems more appropriate to set 0^-1 to float('inf'). Does this break anything?
     if x==0:
 #        return float('inf')
         return 0
@@ -456,21 +476,18 @@ def G(P,q_diag):
     P[i,j] = P_{i,j} (transition matrix of a markov chain)
     q_diag[i] = -q_(i,i) (vacation rate of the block-counting process)
     '''
-#    q = np.r_[np.array([[0],[float('inf')]]),q_diag]
+    # Comupte diagonal elements of g, using G[n,n] = 1/abs(q_n,n,)
     q_G = copy(q_diag)
     for i,x in enumerate(q_G):
         q_G[i] = reciprocal(x)
-#    N = P.shape[1] + 1
     N_G = len(q_G)
-#    G = np.eye(N).dot(q)
     G_G = np.diag(q_G)
-    # G[n,m] = g(n,m)
-    
-    #compute G under the assumption that G[m,m] == 1 for all m
+
     for n in range(2,N_G):
 #        for m in range(n-1,1,-1):
-        for m in range(2,n):
+        for m in range(2,n)[::-1]:
             G_G[n,m] = float(P[n,m:n].dot(G_G[m:n,m]))
+#            G_G[n,m] = sum([P[n,l]*G_G[l,m] for l in range(m,n)])
     
     # scale row m of G by a factor of 1/-q_(m ,m)
 #    G_G = G_G.dot(np.diag(q_G,0))
@@ -529,8 +546,8 @@ def p_and_g(N,coalescentType,args):
 
     #compute constants:
     P_mat,q_vec = P_and_q(N,coalescentType,args)
+#    print "1: q_%s=%s"%(coalescentType , str([round(q,3) for q in q_vec]))
     G_mat = G(P_mat,q_vec)
-
     #initialize array
     p_mat = np.zeros((N+1,N+1,N+1))
 
@@ -587,19 +604,20 @@ def p_and_g(N,coalescentType,args):
 ## should speed things up considerably. Regrettibly, this has not halped improve performance this far.
         for n in range(1,N+1):
             for n1 in range(1,n):
-                for p in partitionsMultiset_constrained(n,n1,4):
-                    pResult = mp.mpf(jumpProb(p,n,q_vec,args))
+                for p in partitions_constrained(n,n1,4):
+                    p_mul = partitionToMultiset(p)
+                    pResult = mp.mpf(jumpProb(p,p_mul,n,q_vec,args))
                     for b1 in range(1,n1):
-#                        b1Result = pResult*(binom(n1,b1)**-1)
+                        b1Result = pResult*(binom(n1,b1)**-1)
                         kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
-                        for s in subpartitionsMultiset(p,b1):
+                        for s in subpartitionsMultiset(p_mul,b1):
 #                            b = s[1]
-#                            sResult = b1Result*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-                            sResult = pResult*mp.mpf(mySubpartitionProb(p,s[0],n1,b1,verify=True))
+                            sResult = b1Result*myProd([binom(p_mul[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
+#                            sResult = pResult*mp.mpf(mySubpartitionProb(p,s[0],n1,b1,verify=True))
                             for k in kRange:
 #                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
-                                p_mat[n,k,s[1]] += sResult*mp.mpf(p_mat[n1,k,b1])*(mp.mpf(G_mat[n1,k])/mp.mpf(G_mat[n,k]))
-#                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]
+#                                p_mat[n,k,s[1]] += sResult*mp.mpf(p_mat[n1,k,b1])*(mp.mpf(G_mat[n1,k])/mp.mpf(G_mat[n,k]))
+                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]
 
 ### AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
 ### for errors) Should be at least an order of magnitude slower than above
@@ -622,7 +640,6 @@ def p_and_g(N,coalescentType,args):
 ##                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
 #                                for lam1 in [x for x in subpartitionsMultiset(lam,b1) if x[1]==b]:
 #                                    p_mat[n,k,b] += lamRes*myProd([binom(lam[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
-
         return p_mat,G_mat
     
     ###CASE: Lambda-coalescents
@@ -639,7 +656,7 @@ def p_and_g(N,coalescentType,args):
                         p_mat[n,k,b] += (P_mat[n,n1]*G_mat[n1,k]/G_mat[n,k])*res
         return p_mat,G_mat
 
-def jumpProb_xiBet(part,n,q_vec,args):
+def jumpProb_xiBet(part,partMul,n,q_vec,args):
     '''
     calculates
     P(initial jump is to a state with block-sizes given
@@ -648,15 +665,16 @@ def jumpProb_xiBet(part,n,q_vec,args):
     i.e. part[i] == #i-blocks of part, and
          sum(i * part[i]) == n
     '''
-    m = []
-    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
-        m.extend(l)
+#    m = []
+#    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+#        m.extend(l)
+
+#Works in floating-point arithmetics
+#    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
 
     #modified to work with multiple Precision arithmetics
-    return (multinomial(n,m,multiplePrecision=True)/mp.mpf(q_vec[n]))*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0]))
 
-    #Works in floating-point arithmetics
-#    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
+    return (multinomial(n,part,multiplePrecision=True)*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0])))/(np.prod(map(mp.fac,partMul))*q_vec[n])
 
 def jumpProb_xiEW(part,n,q_vec,args):
     '''
@@ -724,8 +742,8 @@ def jumpProbTest(n,coalescentType,args,outputDist=False):
         
     l = []
     for n1 in range(1,n):
-        for lam in list(partitionsMultiset_constrained(n,n1,4)):
-            l.append((lam,float(jumpProb(lam,n,q_vec,args))))
+        for lam in list(partitions_constrained(n,n1,4)):
+            l.append((lam,float(jumpProb(lam,partitionToMultiset(lam),n,q_vec,args))))
 #            print "woo",n,lam,jumpProb(lam,n,q_vec,args)
     if outputDist:
         return l

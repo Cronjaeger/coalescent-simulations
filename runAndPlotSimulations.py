@@ -14,9 +14,9 @@ import matplotlib.pyplot as pl
 
 #TEST1: Compare expected normalized SFS with empirical average of norm. SFS
 #  of simulated coalescents
-n = 10
+n = 5
 theta = 4.
-trials = 1000
+trials = 300
 beta = 1.0
 psi = .3
 c = 1. # other values of c are probably not that relevant.
@@ -94,6 +94,8 @@ label1 = 'expected norm. SFS (recursions)'
 label2 = 'emperical mean of norm. SFS'
 pl.plot(x , phi[1:] , color='blue' , label=label1)
 pl.plot(x , Pi2_normSFS_AVG[:-1] , color='red' , label=label2)
+#pl.plot(x , xi[1:] , color='blue' , label=label1)
+#pl.plot(x , Bet4_SFS_AVG[:-1] , color='red' , label=label2)
 pl.legend(loc='upper right')
 del x
 
@@ -106,9 +108,9 @@ empLength = np.average(lengths)
 thrLength = sum(l*g[n,l] for l in range(2,n+1))
 
 print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelative error:\t%f"%(empLength,thrLength,abs(empLength -thrLength)/thrLength)
-
-#del Pi_1
-#del Pi_2
+#
+##del Pi_1
+##del Pi_2
 
 ##TEST 2:
 ## simulate and run kingman-coalescents
@@ -173,7 +175,8 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 #
 #print "computing expected average normalized SFS from recursion equation..."
 #t1 = time.time()
-#xi_bet,phi_bet,p_bet,g_bet = re.expectedSFS(n,'lambda_beta',theta,alpha)
+##xi_bet,phi_bet,p_bet,g_bet = re.expectedSFS(n,'lambda_beta',theta,alpha)
+#xi_bet,phi_bet,p_bet,g_bet = re.expectedSFS(n,'xi_beta',theta,alpha)
 #xi_K,phi_K,p_K,g_K = re.expectedSFS(n,'kingman',theta)
 #t2 = time.time()
 #print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
@@ -181,7 +184,7 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 #print "plotting results"
 #x = np.arange(1,n)
 ##plot normalized spectra
-#label1 = 'norm. SFS (beta_%s )'%(str(round(alpha,3)))
+#label1 = 'norm. SFS (xi_beta_%s )'%(str(round(alpha,3)))
 #label2 = 'norm. SFS (Kingman)'
 #pl.plot(x , phi_bet[1:] , color='blue' , label=label1)
 #pl.plot(x , phi_K[1:] , color='red' , label=label2)

@@ -111,9 +111,40 @@ def partitions_constrained(n,n1,maxBigBlocks):
         P = []
         singletonBlocks = max(n1 - maxBigBlocks,0)
         initialPart = singletonBlocks*[1]
+        if singletonBlocks == n1-1:
+            return tuple(initialPart + [n - singletonBlocks] )
         for i in xrange(1,(n-singletonBlocks)//(n1-singletonBlocks)+1):
             buildPartitions(tuple(initialPart + [i]),i,P,n,n1,1+singletonBlocks,i+singletonBlocks)
         return P
+
+def NEWSubpartitionsMultiset(part,b1):
+    n = len(part)
+    if b1==sum(part):
+        subP = []
+        subP.append((part,sum([i*j for i,j in enumerate(part)])))
+        return subP
+    else:
+        subP = []
+        blocksGeq = list([int(part[i] > 0)*sum(part[i:]) for i in xrange(n)])
+        suitableChoices = (i for i,x in enumerate(blocksGeq) if x >=b1)
+#        print blocksGeq
+        for i in suitableChoices:
+            subPart = tuple([int(j==i) for j in xrange(n)])
+            newBlocksGeq = [0 for j in range(i)] + [blocksGeq[i]-(blocksGeq[i-1]+1)] + blocksGeq[i+1:]
+            print subPart,'\n',newBlocksGeq,'\n'
+            NEWbuldSubpartitionsMultiset(newBlocksGeq,subPart,n,b1-1,i,subP)
+        return subP
+        
+def NEWbuldSubpartitionsMultiset(blocksGeq,subPart,n,toGo,Sum,subP):
+    if toGo==0:
+        subP.append((subPart,Sum))
+    else:
+        for i in (i for i,x in enumerate(blocksGeq) if x >=toGo):
+            newSubPart = tuple([subPart[j] + int(j==i) for j in xrange(n)])
+            newBlocksGeq = [0 for i in range(i)]+[blocksGeq[i]-1]+blocksGeq[i+1:]
+            buildSubPartMulti(newBlocksGeq, newSubPart,n,toGo-1,Sum+i,subP)    
+        
+        
 
 def subpartitionsMultiset(part,b1):
     '''
@@ -192,6 +223,9 @@ def lambda_beta_collisionRate(b,k,alpha):
     else:
         return Beta(k-alpha,b-k+alpha)/Beta(2-alpha,alpha)
 
+def fallingFactorial(n,k):
+    return np.prod(range(n,n-k,-1))
+
 def fourWay_beta_collisionRate(b,k,alpha):
     '''
     compute the rate of (b;k[1],...,k[len(k)];s)-collisions
@@ -205,8 +239,14 @@ def fourWay_beta_collisionRate(b,k,alpha):
         return 0
     else:
         r = len(k)
-        return sum([binom(b-K,l) * lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
-
+        s = b-K
+        l_max = min(4-r,s)
+        return sum([(binom(s,l) * lambda_beta_collisionRate(b,K+l,alpha))*(fallingFactorial(4,l+r)/(4.0**(K+l))) for l in range(0,l_max+1)])
+#        return sum([binom(b-K,l) * lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(4.0**(K+l)) for l in range(0,4-r+1)])
+#        rate = 0.0
+#        for l in range(0,l_max+1):
+#            rate += binom(s,l)*lambda_beta_collisionRate(b,K+l,alpha)*np.prod(range(4,4-(r+l),-1))/(float(4)**(K+l))
+#        return rate
 
 #        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
 #        ''' The first factor counts the ways that one can partition a K-set into subsets, with sizes given by the vector k (which has), divided by the total number ow ways one can 
@@ -315,21 +355,60 @@ def P_and_q_lambda_beta(N,args):
     return P,q
     
 def P_and_q_xi_beta(N,args):
-#Old. implementation using floating point arithmetics
     alpha = args[0]
     P = np.zeros((N+1,N+1))
     P[1,1] = 1.
     q = np.zeros(N+1)
+
+#Original implementation.
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
+#            for p in partitions(n,m):
                 p_mul = partitionToMultiset(p)
-                P[n,m] += (multinomial(n,p)/np.prod(map(factorial, p_mul))) * fourWay_beta_collisionRate(n,[x for x in p if x > 1],alpha)
+                k_vec = [x for x in p if x > 1]
+                factor = (multinomial(n,p)/np.prod(map(factorial, p_mul)))
+#                factor = multinomial(n,k_vec+[n - sum(k)]) / np.prod(map(factorial,p_mul[2:])) #from schweinsberg 2000 equation (3). (equivalent to above formula)
+                P[n,m] += factor * fourWay_beta_collisionRate(n,k_vec,alpha)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
+    #    
+   
+#    #new attempt to reimplement
+#    # begin auxiliary functions
+#    def factorPart(part):
+#        return multinomial(sum(part),part)/np.prod(map(factorial, partitionToMultiset(part)))
+#
+#    def signaturePart(part):
+#        return (sum(part),[k for k in part if k > 1],sum([int(k==1) for k in part]))
+#
+#    def lambdaRate(b,k):
+#        return lambda_beta_collisionRate(b,k,alpha)
+#
+#    def collisionRate(signature):
+#        b,k_vec,s = signature[0], signature[1], signature[2]
+#        K,r = sum(k_vec),len(k_vec)
+#        l_max = min(4-r,s)
+#        return sum([binom(s,l) * lambdaRate(b,K+l) * fallingFactorial(4,r+l)/(4**K+l) for l in range(l_max+1)])
+#        
+#    def ratePart(part):
+#        return factorPart(part) * collisionRate(signaturePart(part))
+#    #end auxiliary functions
+#    
+#    for n in range(1,N+1):
+#        parts = []
+#        partsBySize = []
+#        for m in range(1,n):
+#            partsNew = partitions_constrained(n,m,4)
+#            parts += partsNew
+#            partsBySize.append(partsNew)
+#        q[n] = sum(map(ratePart,parts))
+#        for i,partsBySize in enumerate(partsBySize):
+#            P[n,i+1] = sum(map(ratePart,partsBySize))/q[n]
+#    return P,q
 
-## attempt to implement using multiple-precision arithmetics
+# attempt to implement using multiple-precision arithmetics
 #    P_lambdaTest,q_lambdaTest = P_and_q_lambda_beta(N,args)
 #    decimalPlaces = 100
 #    with mp.workdps(decimalPlaces):
@@ -404,7 +483,7 @@ def P_and_q_xi_pointMass(N,args):
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
-                P[n,m] += multinomial(n,p) * fourWay_pointMass_collisionRate(n,[k for k in p if k > 1],phi)
+                P[n,m] += multinomial(n,p) * (np.prod(map(factorial,partitionToMultiset(p)))**-1) * fourWay_pointMass_collisionRate(n,[k for k in p if k > 1],phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
@@ -476,22 +555,36 @@ def G(P,q_diag):
     P[i,j] = P_{i,j} (transition matrix of a markov chain)
     q_diag[i] = -q_(i,i) (vacation rate of the block-counting process)
     '''
+
+    N_G = len(q_diag)
+
     # Comupte diagonal elements of g, using G[n,n] = 1/abs(q_n,n,)
     q_G = copy(q_diag)
     for i,x in enumerate(q_G):
         q_G[i] = reciprocal(x)
-    N_G = len(q_G)
     G_G = np.diag(q_G)
 
     for n in range(2,N_G):
 #        for m in range(n-1,1,-1):
-        for m in range(2,n)[::-1]:
+        for m in range(2,n):
             G_G[n,m] = float(P[n,m:n].dot(G_G[m:n,m]))
 #            G_G[n,m] = sum([P[n,l]*G_G[l,m] for l in range(m,n)])
     
-    # scale row m of G by a factor of 1/-q_(m ,m)
+#     scale row m of G by a factor of 1/-q_(m ,m)
 #    G_G = G_G.dot(np.diag(q_G,0))
     return G_G
+
+#    G = np.zeros((N_G,N_G))
+#    for n,x in enumerate(q_diag):
+#        if x!= 0:
+#            G[n,n] = float(x)**-1
+#
+#    for n in range(2,N_G):
+#        for m in range(2,n):
+#            for k in range(m,n):
+#                G[n,m] += P[n,k]*G[k,m]
+#    
+#    return G
     
 def g_ratio(k,G):
     '''
@@ -600,28 +693,29 @@ def p_and_g(N,coalescentType,args):
 #                            for s in subpartitionsMultiset(p,b1):
 #                                p_mat[n,k,s[1]] += pResult*myProd([binom(p[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])/binom(n1,b1)
 
-##In the following, I have restructured, so that k is the inner variable. This
-## should speed things up considerably. Regrettibly, this has not halped improve performance this far.
+#In the following, I have restructured, so that k is the inner variable. This
+# should speed things up considerably. Regrettibly, this has not halped improve performance this far.
         for n in range(1,N+1):
             for n1 in range(1,n):
                 for p in partitions_constrained(n,n1,4):
                     p_mul = partitionToMultiset(p)
-                    pResult = mp.mpf(jumpProb(p,p_mul,n,q_vec,args))
+                    pResult = jumpProb(p,p_mul,n,q_vec,args)
                     for b1 in range(1,n1):
-                        b1Result = pResult*(binom(n1,b1)**-1)
-                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]
-                        for s in subpartitionsMultiset(p_mul,b1):
+                        b1Result = pResult/binom(n1,b1)
+#                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x + 1]
+                        for subPart,b in subpartitionsMultiset(p_mul,b1):
 #                            b = s[1]
-                            sResult = b1Result*myProd([binom(p_mul[i],s[0][i]) for i in xrange(len(s[0])) if s[0][i] != 0])
-#                            sResult = pResult*mp.mpf(mySubpartitionProb(p,s[0],n1,b1,verify=True))
-                            for k in kRange:
-#                            for k in [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x +1]:
+                            sResult = b1Result*myProd([binom(p_mul[i],subPart[i]) for i in xrange(len(subPart)) if subPart[i] != 0])
+#                            sResult = pResult*mp.mpf(mySubpartitionProb(p_mul,subPart[0],n1,b1,verify=True))
+#                            sResult = pResult*mySubpartitionProb(p_mul,subPart,n1,b1,verify=True)
+#                            for k in kRange:
+                            for k in range(2,n+1):
 #                                p_mat[n,k,s[1]] += sResult*mp.mpf(p_mat[n1,k,b1])*(mp.mpf(G_mat[n1,k])/mp.mpf(G_mat[n,k]))
-                                p_mat[n,k,s[1]] += sResult*p_mat[n1,k,b1]
+                                p_mat[n,k,b] += sResult*p_mat[n1,k,b1]*G_mat[n1,k]/G_mat[n,k]
 
-### AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
-### for errors) Should be at least an order of magnitude slower than above
-### implementations.
+## AN ATEMPT AT IMPLEMENTING THE RECURSION FORMULA NAIVELY (in order to check
+## for errors) Should be at least an order of magnitude slower than above
+## implementations.
 #        for n in range(1,N+1):
 #            for k in range(2,n+1):
 #                for b in range(1,n-k+2):
@@ -631,15 +725,15 @@ def p_and_g(N,coalescentType,args):
 #                        for b1 in range(1,min(b,n1-k+1)+1):
 #                            b1Res = n1Res*p_mat[n1,k,b1]/binom(n1,b1)
 #
-#                            for lam in partitionsMultiset_constrained(n,n1,4):
-#                                lamRes = b1Res*jumpProb(lam,n,q_vec,args)
-#
-##                                ##testing
-##                                jProb = jumpProb(lam,n,q_vec,args)
-##                                if jProb == 0.0:
-##                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
-#                                for lam1 in [x for x in subpartitionsMultiset(lam,b1) if x[1]==b]:
-#                                    p_mat[n,k,b] += lamRes*myProd([binom(lam[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
+#                            for lam in partitions_constrained(n,n1,4):
+#                                lam_multi = partitionToMultiset(lam)
+#                                lamRes = b1Res*jumpProb(lam,lam_multi,n,q_vec,args)
+###                                ##testing
+###                                jProb = jumpProb(lam,n,q_vec,args)
+###                                if jProb == 0.0:
+###                                    print "jumpProb = %f\n\tlam_multiset=%s\n\tn,q[n]=%i,%f"%(jProb,str(lam),n,q_vec[n])
+#                                for lam1 in [x for x in subpartitionsMultiset(lam_multi,b1) if x[1]==b]:
+#                                    p_mat[n,k,b] += lamRes*myProd([binom(lam_multi[i],lam1[0][i]) for i in xrange(len(lam1[0])) if lam1[0][i] != 0])
         return p_mat,G_mat
     
     ###CASE: Lambda-coalescents
@@ -670,11 +764,11 @@ def jumpProb_xiBet(part,partMul,n,q_vec,args):
 #        m.extend(l)
 
 #Works in floating-point arithmetics
-#    return (multinomial(n,m)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in m if x>1],args[0])
+#    return (multinomial(n,partMul)/q_vec[n])*fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0])
+    return (multinomial(n,part)*fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0]))/(np.prod(map(factorial,partMul))*q_vec[n])
 
-    #modified to work with multiple Precision arithmetics
-
-    return (multinomial(n,part,multiplePrecision=True)*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0])))/(np.prod(map(mp.fac,partMul))*q_vec[n])
+#    modified to work with multiple Precision arithmetics
+#    return (multinomial(n,part,multiplePrecision=True)*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0])))/(np.prod(map(mp.fac,partMul))*q_vec[n])
 
 def jumpProb_xiEW(part,n,q_vec,args):
     '''
@@ -686,15 +780,15 @@ def jumpProb_xiEW(part,n,q_vec,args):
     #m is an encoding of part as a sequence.
     return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q_vec[n]
     
-def jumpProb_xiPointMass(part,n,q_vec,args):
+def jumpProb_xiPointMass(p,p_mul,n,q_vec,args):
     '''
     similar to the xi_beta-case
     '''
-    m = []
-    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
-        m.extend(l)
-    #m is an encoding of part as a sequence.
-    return multinomial(n,m)*fourWay_pointMass_collisionRate(n,m,args[0])/q_vec[n]
+#    m = []
+#    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+#        m.extend(l)
+#    #m is an encoding of part as a sequence.
+    return multinomial(n,p)*fourWay_pointMass_collisionRate(n,p,args[0])/(q_vec[n] * np.prod(map(factorial,p_mul)))
 
 def jumpProb_xiKingman(part,n,q_vec,args):
     '''
@@ -706,15 +800,15 @@ def jumpProb_xiKingman(part,n,q_vec,args):
     else:
         return 0
 
-def jumpProb_xi_lambda_beta(part,n,q_vec,args):
+def jumpProb_xi_lambda_beta(p,p_mul,n,q_vec,args):
     '''
         Calculates the probability that the first jump of a beta coalescent is
         to the partition "part".
         used to check recursion-formula.
         args[0] = P
     '''
-    if sum(part[2:])==1:
-        k = part[2:].index(1) + 2
+    if sum(p_mul[2:])==1:
+        k = p_mul[2:].index(1) + 2
         n1 = n - k + 1
         return args[0][n,n1]
     else:

@@ -169,7 +169,8 @@ class coalescent(object):
         return deepcopy(self.mutations)
         
     def addJump(self,t_new,newBlocks):
-        if t_new < self.t_lastJump:
+#        if t_new < self.t_lastJump:
+        if t_new < self.jumps[-1][0] :
             pass
             print 'New event at time t=',t_new,' will occur in the past! t_max = ',self.t_lastJump,'. This is not supported!'
         else:
@@ -299,11 +300,13 @@ class simExchCoalWithMut(object):
             #Generate Next jump-event. SampleJumps returns a tuple of the form (t,Indexes). It simplementation differs in each subclass.
             jumpEvent = self.sampleJumps()
             t_current = jumpEvent[0]
+            self.coal.t_lastJump = t_current
             
             #If the jumpEvent is invisble in the sense that no blocks merge, we ignore it (but add the time elapsed).
             while self.IgnoreInvisibleJumps and not self.validateMergers(jumpEvent[1]):
                 jumpEvent = self.sampleJumps()
                 t_current = jumpEvent[0]
+                self.coal.t_lastJump = t_current
             
             if t_current > self.T_max:
                 keepGoing = False
@@ -345,7 +348,8 @@ class simExchCoalWithMut(object):
         '''
         t = self.coal.t_lastJump
         b = self.coal.k_current
-        t += np.random.exponential(q[b]**-1)
+        waitingTime = np.random.exponential(q[b]**-1)
+        t += waitingTime
         b_New = np.random.choice(b,p=P[b,:b])
         affectedBlocks = list(np.random.choice(b,size=b-b_New+1,replace=False))
         mergers = self.split(affectedBlocks)

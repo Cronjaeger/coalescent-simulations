@@ -12,102 +12,104 @@ import libCoal as lc
 import numpy as np
 import matplotlib.pyplot as pl
 
-#TEST1: Compare expected normalized SFS with empirical average of norm. SFS
-#  of simulated coalescents
-n = 5
-theta = 4.
-trials = 300
-beta = 1.0
-psi = .3
-c = 1. # other values of c are probably not that relevant.
-T_max = float('inf')
-coalescentType = 'xi_beta'
-#coalescentType = 'xi_pointMass'
-#coalescentType = 'xi_lambda_beta'
-
-Pi_1 = []
-Pi_2 = []
-
-coalescentType = coalescentType.lower()
-
-print "Running %i simulations of a %s coalescent, with n=%i, theta=%s, alpha=%s, phi=%s..."%(trials,coalescentType,n,str(round(theta,3)),str(round(beta,3)),str(round(psi,3)))
-t1 = time.time()
-if coalescentType == 'xi_beta':
-    P,q = re.P_and_q_lambda_beta(n,(beta,))
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaBeta_FourWay(n,theta/2.,T_max,beta,P,q))
-elif coalescentType == 'lambda_beta' or coalescentType=='xi_lambda_beta':
-    P,q = re.P_and_q_lambda_beta(n,(beta,))
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaBeta(n,theta/2.,T_max,beta,P,q))
-elif coalescentType =='xi_ew':
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaEldonWakely(n,theta/2.,T_max,psi))
-elif coalescentType == 'lambda_ew':
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaEldonWakely_FourWay(n,theta/2.,T_max,psi))
-elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
-    for i in range(trials):
-        Pi_2.append(lc.simulateKingman(n,theta/2.,T_max))
-elif coalescentType == 'lambda_pointmass':
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaPoint(n,theta/2.,T_max,psi))
-elif coalescentType == 'xi_pointmass':
-    for i in range(trials):
-        Pi_2.append(lc.simulateLambdaPoint_FourWay(n,theta/2.,T_max,psi))
-t2 = time.time()
-print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
-
-print "computing expected average normalized SFS from recursion equation..."
-t1 = time.time()
-if coalescentType in set(['xi_beta','lambda_beta','xi_lambda_beta']):
-    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,beta)
-elif coalescentType == 'xi_ew' or coalescentType == 'lambda_ew':
-    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,c,psi)
-elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
-    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta)
-elif coalescentType == 'xi_pointmass' or coalescentType == 'lambda_pointmass':
-    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,psi)
-t2 = time.time()
-print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
-
-print "computing average normalized SFS..."
-t1= time.time()
-#Bet_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_1]) for i in range(n)])
-Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_2]) for i in range(n)])
-
-factor = sum([l*g[n,l] for l in range(2,n+1)])*theta/2.0
-#Pi1_normSFS = [x.coal.computeNormalizedSFS() for x in Pi_1]
-Pi2_normSFS = [x.coal.computeNormalizedSFS(factor) for x in Pi_2]
-
-#Pi1_normSFS_AVG = np.array([np.average([x[i] for x in Pi1_normSFS]) for i in range(n)])
-Pi2_normSFS_AVG = np.array([np.average([x[i] for x in Pi2_normSFS]) for i in range(n)])
-t2 = time.time()
-print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
-
-
-print "plotting results"
-x = np.arange(1,n)
-
-#plot normalized spectra
-label1 = 'expected norm. SFS (recursions)'
-label2 = 'emperical mean of norm. SFS'
-pl.plot(x , phi[1:] , color='blue' , label=label1)
-pl.plot(x , Pi2_normSFS_AVG[:-1] , color='red' , label=label2)
-#pl.plot(x , xi[1:] , color='blue' , label=label1)
-#pl.plot(x , Bet4_SFS_AVG[:-1] , color='red' , label=label2)
-pl.legend(loc='upper right')
-del x
-
-#check that the theoretical expected tree-ength matches the empirical one.
-#compute empirical tree-length:
-lengths = np.array([x.coal.computeTreeLength() for x in Pi_2])
-empLength = np.average(lengths)
-
-#compute expected theoretical tree-lenghts
-thrLength = sum(l*g[n,l] for l in range(2,n+1))
-
-print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelative error:\t%f"%(empLength,thrLength,abs(empLength -thrLength)/thrLength)
+###TEST1: Compare expected normalized SFS with empirical average of norm. SFS
+###  of simulated coalescents
+#n = 10
+#theta = 4
+#trials = 1000
+#beta = 1.0
+#psi = .5
+#c = 1. #other values of c are probably not that relevant.
+#T_max = float('inf')
+##coalescentType = 'kingman'
+#coalescentType = 'xi_beta'
+##coalescentType = 'xi_pointMass'
+##coalescentType = 'xi_lambda_beta'
+##coalescentType = 'lambda_beta'
+#
+#Pi_1 = []
+#Pi_2 = []
+#
+#coalescentType = coalescentType.lower()
+#
+#print "Running %i simulations of a %s coalescent, with n=%i, theta=%s, alpha=%s, phi=%s..."%(trials,coalescentType,n,str(round(theta,3)),str(round(beta,3)),str(round(psi,3)))
+#t1 = time.time()
+#if coalescentType == 'xi_beta':
+#    P,q = re.P_and_q_lambda_beta(n,(beta,))
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaBeta_FourWay(n,theta/2.,T_max,beta,P,q))
+#elif coalescentType == 'lambda_beta' or coalescentType=='xi_lambda_beta':
+#    P,q = re.P_and_q_lambda_beta(n,(beta,))
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaBeta(n,theta/2.,T_max,beta,P,q))
+#elif coalescentType =='xi_ew':
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaEldonWakely(n,theta/2.,T_max,psi))
+#elif coalescentType == 'lambda_ew':
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaEldonWakely_FourWay(n,theta/2.,T_max,psi))
+#elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateKingman(n,theta/2.,T_max))
+#elif coalescentType == 'lambda_pointmass':
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaPoint(n,theta/2.,T_max,psi))
+#elif coalescentType == 'xi_pointmass':
+#    for i in range(trials):
+#        Pi_2.append(lc.simulateLambdaPoint_FourWay(n,theta/2.,T_max,psi))
+#t2 = time.time()
+#print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
+#
+#print "computing expected average normalized SFS from recursion equation..."
+#t1 = time.time()
+#if coalescentType in set(['xi_beta','lambda_beta','xi_lambda_beta']):
+#    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,beta)
+#elif coalescentType == 'xi_ew' or coalescentType == 'lambda_ew':
+#    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,c,psi)
+#elif coalescentType == 'kingman' or coalescentType == 'xi_kingman':
+#    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta)
+#elif coalescentType == 'xi_pointmass' or coalescentType == 'lambda_pointmass':
+#    xi,phi,p,g = re.expectedSFS(n,coalescentType,theta,psi)
+#t2 = time.time()
+#print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
+#
+#print "computing average normalized SFS..."
+#t1= time.time()
+##Bet_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_1]) for i in range(n)])
+#Bet4_SFS_AVG = np.array([np.average([x.SFS[i] for x in Pi_2]) for i in range(n)])
+#
+#factor = sum([l*g[n,l] for l in range(2,n+1)])*theta/2.0
+##Pi1_normSFS = [x.coal.computeNormalizedSFS() for x in Pi_1]
+#Pi2_normSFS = [x.coal.computeNormalizedSFS(factor) for x in Pi_2]
+#
+##Pi1_normSFS_AVG = np.array([np.average([x[i] for x in Pi1_normSFS]) for i in range(n)])
+#Pi2_normSFS_AVG = np.array([np.average([x[i] for x in Pi2_normSFS]) for i in range(n)])
+#t2 = time.time()
+#print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
+#
+#
+#print "plotting results"
+#x = np.arange(1,n)
+#
+##plot normalized spectra
+#label1 = 'expected norm. SFS (recursions)'
+#label2 = 'emperical mean of norm. SFS'
+#pl.plot(x , phi[1:] , color='blue' , label=label1)
+#pl.plot(x , Pi2_normSFS_AVG[:-1] , color='red' , label=label2)
+##pl.plot(x , xi[1:] , color='blue' , label=label1)
+##pl.plot(x , Bet4_SFS_AVG[:-1] , color='red' , label=label2)
+#pl.legend(loc='upper right')
+#del x
+#
+##check that the theoretical expected tree-ength matches the empirical one.
+##compute empirical tree-length:
+#lengths = np.array([x.coal.computeTreeLength() for x in Pi_2])
+#empLength = np.average(lengths)
+#
+##compute expected theoretical tree-lenghts
+#thrLength = sum(l*g[n,l] for l in range(2,n+1))
+#
+#print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelative error:\t%f"%(empLength,thrLength,abs(empLength -thrLength)/thrLength)
 #
 ##del Pi_1
 ##del Pi_2
@@ -169,7 +171,7 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 
 ##TEST 3: verify that lambda-beta is similar to kingman when alpha ~2
 #n = 10
-#eps = 0.001
+#eps = 0.000001
 #theta = 2.0
 #alpha = 2.0 - eps
 #
@@ -191,31 +193,32 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 #pl.legend(loc='upper right')
 #del x
 
-##TEST 4. Plot normalized expected SFS of a xi-versus-lambda coalescent
-#n = 10
-#theta = 1.
+#TEST 4. Plot normalized expected SFS of two different coalsescents coalescent
+n = 10
+theta = 2.
 #trials = 100
-#alpha = 1.8
-#psi = 1
-#c = 1. # other values of c are probably not that relevant.
-#T_max = float('inf')
-#
-#print "computing expected average normalized SFS from recursion equation..."
-#t1 = time.time()
-#xi_lam,phi_lam,p_lam,g_lam = re.expectedSFS(n,'lambda_beta',theta,alpha)
-#xi_xi,phi_xi,p_xi,g_xi = re.expectedSFS(n,'xi_beta',theta,alpha)
-#t2 = time.time()
-#print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
-#
-#print "plotting results"
-#x = np.arange(1,n)
-##plot normalized spectra
-#label1 = 'norm SFS (lambda_beta_%s )'%(str(round(alpha,3)))
-#label2 = 'norm SFS (xi_beta_%s )'%(str(round(alpha,3)))
-#pl.plot(x , phi_lam[1:] , color='blue' , label=label1)
-#pl.plot(x , phi_xi[1:] , color='red' , label=label2)
-#pl.legend(loc='upper right')
-#del x
+alpha = 1.0
+psi = 1
+c = 1. # other values of c are probably not that relevant.
+T_max = float('inf')
+coalescentTypes = ['lambda_beta','xi_beta']
+
+print "computing expected average normalized SFS from recursion equation..."
+t1 = time.time()
+xi_lam,phi_lam,p_lam,g_lam = re.expectedSFS(n,coalescentTypes[0],theta,alpha)
+xi_xi,phi_xi,p_xi,g_xi = re.expectedSFS(n,coalescentTypes[1],theta,alpha)
+t2 = time.time()
+print "done! elapsed time = %s sec \n"%(str(round(t2-t1,3)))
+
+print "plotting results"
+x = np.arange(1,n)
+#plot normalized spectra
+label1 = 'norm SFS (%s_%s )'%(coalescentTypes[0],str(round(alpha,3)))
+label2 = 'norm SFS (%s_%s )'%(coalescentTypes[1],str(round(alpha,3)))
+pl.plot(x , phi_lam[1:] , color='blue' , label=label1)
+pl.plot(x , phi_xi[1:] , color='red' , label=label2)
+pl.legend(loc='upper right')
+del x
 
 
 ##Test 5: Compare expected spectra of Xi- versus Lambda coalescents
@@ -303,6 +306,26 @@ print "arerage empirical tree-length:\t%f\ntheoretical tree-length:\t%f\nRelativ
 #for i in range(len(psiList)):
 #    pl.plot(x , phi[i][1:] , label=labels[i])
 
-
-    
-    
+#TEST 7
+# compare the results obtained from recursionequation.py with those from 
+# betaXiCoalescent_SFS.py
+#import betaXiCoalescent_SFS as sfsExact
+#coalescentType = 'xi_beta'
+#n, theta, beta = 10, 2., 1.0
+#
+#xi1, phi1, p1, g1 = re.expectedSFS(n, coalescentType, theta, beta)
+#xi2, phi2, p2, g2 = sfsExact.expectedSFS(n, coalescentType, theta, beta)
+#
+#label1 = 'old implementation'
+#label2 = 'new implementation'
+#
+#x = np.arange(1,n)
+#pl.plot(x , xi1[1:] , label=label1)
+#pl.plot(x , xi2[1:-1] , label=label2)
+#pl.legend(loc='upper right')
+#
+#thrLength1 = sum(l*g1[n,l] for l in range(2,n+1))
+#thrLength1_1 = sfsExact.expectedTreeLength(g1)
+#thrLength2 = float(sfsExact.expectedTreeLength(g2))
+#
+#print thrLength1,thrLength2

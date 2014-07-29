@@ -338,7 +338,8 @@ class simExchCoalWithMut(object):
         waitingTime=np.random.exponential(currentMergerRate**-1)
         t = self.coal.t_lastJump + waitingTime
         affectedBlocks = list(np.random.choice(self.coal.k_current,2,replace=False))
-        return (t,[affectedBlocks])
+        mergers = self.split(affectedBlocks)
+        return (t,mergers)
     
     def sampleJumpsLambdaCTMC(self,P,q):
         '''Samples a jump of an arbitrary exchangeable Lambda-coalescent given

@@ -118,34 +118,65 @@ def partitions_constrained(n,n1,maxBigBlocks):
         return P
 
 def NEWSubpartitionsMultiset(part,b1):
+#    n = len(part)
+#    if b1==sum(part):
+#        subP = []
+#        subP.append((part,sum([i*j for i,j in enumerate(part)])))
+#        return subP
+#    else:
+#        subP = []
+#        blocksGeq = list([int(part[i] > 0)*sum(part[i:]) for i in range(n)])
+#        suitableChoices = (i for i,x in enumerate(blocksGeq) if x >=b1)
+##        print blocksGeq
+#        for i in suitableChoices:
+#            subPart = tuple([int(j==i) for j in xrange(n)])
+##            newBlocksGeq = [0 for j in range(i)] + [blocksGeq[i]-(blocksGeq[i-1]+1)] + blocksGeq[i+1:]
+#            blocks = tuple([int(i<=j)*part[j] - int(j==i) for j in xrange(n)])
+##            print subPart,'\n',newBlocksGeq,'\n'
+#            NEWbuldSubpartitionsMultiset(blocks,subPart,n,b1-1,i,subP)
     n = len(part)
-    if b1==sum(part):
-        subP = []
-        subP.append((part,sum([i*j for i,j in enumerate(part)])))
-        return subP
+    n1 = sum(part)
+    subP_list = []
+    if n1 <= b1:
+        if n1 == b1:
+            subP_list.append((part,sum([i*j for i,j in enumerate(part)])))
+        return subP_list
     else:
-        subP = []
-        blocksGeq = list([int(part[i] > 0)*sum(part[i:]) for i in xrange(n)])
-        suitableChoices = (i for i,x in enumerate(blocksGeq) if x >=b1)
-#        print blocksGeq
-        for i in suitableChoices:
-            subPart = tuple([int(j==i) for j in xrange(n)])
-            newBlocksGeq = [0 for j in range(i)] + [blocksGeq[i]-(blocksGeq[i-1]+1)] + blocksGeq[i+1:]
-            print subPart,'\n',newBlocksGeq,'\n'
-            NEWbuldSubpartitionsMultiset(newBlocksGeq,subPart,n,b1-1,i,subP)
-        return subP
-        
-def NEWbuldSubpartitionsMultiset(blocksGeq,subPart,n,toGo,Sum,subP):
+        bmax = max([i for i in range(n) if sum(part[i:]) >= b1])
+        for i in (j for j in range(1,bmax+1) if part[j] > 0):
+            l = tuple([int(i==j) for j in range(n)])
+            a = tuple([part[j] - int(i==j) for j in range(n)])
+            bmin = i
+            bmax_new = max([j for j in range(bmax,n) if sum(a[j:]) >= b1 - 1])
+            NEWbuldSubpartitionsMultiset(l,a,bmin,bmax_new,b1-1,n,i,subP_list)
+        return subP_list
+def NEWbuldSubpartitionsMultiset(l,a,bmin,bmax,toGo,n,Sum,subP_list):
     if toGo==0:
-        subP.append((subPart,Sum))
+        subP_list.append((l,Sum))
     else:
-        for i in (i for i,x in enumerate(blocksGeq) if x >=toGo):
-            newSubPart = tuple([subPart[j] + int(j==i) for j in xrange(n)])
-            newBlocksGeq = [0 for i in range(i)]+[blocksGeq[i]-1]+blocksGeq[i+1:]
-            buildSubPartMulti(newBlocksGeq, newSubPart,n,toGo-1,Sum+i,subP)    
-        
-        
+        for i in (j for j in range(bmin,bmax+1) if a[j] > 0):
+#            bmin_new = i
+            l_new = tuple([l[j] + int(i==j) for j in range(n)])
+            a_new = tuple([a[j] - int(i==j) for j in range(n)])
+            bmax_new = max([j for j in range(bmax,n) if sum(a_new[j:]) >= toGo - 1])
+##            print l_new,a_new,toGo,bmin_new,bmax_new
+            NEWbuldSubpartitionsMultiset(l_new, a_new, i , bmax_new, toGo-1, n, Sum+i, subP_list)
+#            NEWbuldSubpartitionsMultiset(l_new,a_new, i, max([j for j in range(bmax,n) if sum(a[j:]) >= toGo - 1]), toGo-1, n, Sum+i, subP_list)
 
+#def NEWbuldSubpartitionsMultiset(blocks,subPart,n,toGo,Sum,subP):
+#    if toGo==0:
+#        subP.append((subPart,Sum))
+#        print '\n'
+#    else:
+#        blocksGeq = list([int(blocks[i] > 0)*sum(blocks[i:]) for i in range(n)])
+#        suitableChoices = (i for i,x in enumerate(blocksGeq) if x >=toGo)
+#        for i in suitableChoices:
+#            newSubPart = tuple([subPart[j] + int(j==i) for j in range(n)])
+#            newBlocks = tuple([int(i<=j)*blocks[j] - int(j==i) for j in range(n)])
+##            newBlocksGeq = [0 for i in range(i)]+[blocksGeq[i]-1]+blocksGeq[i+1:]
+#            print newBlocks,newSubPart,i,toGo-1
+#            buildSubPartMulti(newBlocks, newSubPart,n,toGo-1,Sum+i,subP)    
+#    pass
 def subpartitionsMultiset(part,b1):
     '''
     returns all subpartitions of the partitions Part (encoded as a multiset),
@@ -275,20 +306,31 @@ def fourWay_ew_collisionRate(b,k,c,phi):
     it is assumed that all entries in the vector k are integers greater
     than 0, and that len(k) < 4
     '''
-    k = [x for x in k if x>1]
-    K = sum(k)
-    if all([i==1 for i in k]) or K > b or K < 2 :
-        return 0
-    else:
-        r = len(k)
-        K = sum(k)
-        return sum([binom(b-K,l)*lambda_ew_collisionRate(b,K,c,phi)*np.prod(range(4,4-(r+l),-1))/4.0**(K+l) for l in range(0,4-r+1)])
-        
+#    k = [x for x in k if x>1]
+#    K = sum(k)
+#    if all([i==1 for i in k]) or K > b or K < 2 :
+#        return 0
+#    else:
+#        r = len(k)
+#        K = sum(k)
+#        return sum([binom(b-K,l)*lambda_ew_collisionRate(b,K,c,phi)*np.prod(range(4,4-(r+l),-1))/4.0**(K+l) for l in range(0,4-r+1)])
+#        
 #        P_k = multinomial(K,k)/(4.0**K) * multinomial(len(k)-k.count(0),[k.count(i) for i in range(1,K+1)])
 #        print P_k,multinomial(K,k),(4.0**K),multinomial(len(k),[k.count(i) for i in range(1,K+1)])
         # The last factor in the above, counts the number of different ways
         # to arrange the numbers k[1],...k[len(k)]
 #        return P_k * lambda_ew_collisionRate(b,K,c,phi)
+
+    k = [x for x in k if x>1] #remove all 1 and 0 entires from k
+    K = sum(k) #Total number of affected blocks
+#    print b,k,K
+    if all([i==1 for i in k]) or K > b or K < 2 :
+        return 0
+    else:
+        r = len(k)
+        s = b-K
+        l_max = min(4-r,s)
+        return sum([(binom(s,l) * lambda_ew_collisionRate(b,K+l,c,phi))*(fallingFactorial(4,l+r)/(4.0**(K+l))) for l in range(0,l_max+1)])
 
 def lambda_pointMass_collisionRate(b,k,phi):
     phi = float(phi)
@@ -455,10 +497,20 @@ def P_and_q_xi_EW(N,args):
     q = np.zeros(N+1)
     P = np.zeros((N+1,N+1))
     P[1,1] = 1.
+#    for n in xrange(2,N+1):
+#        for m in xrange(1,n):
+#            for p in partitions_constrained(n,m,4):
+#                P[n,m] += multinomial(n,p) * fourWay_ew_collisionRate(n,[k for k in p if k > 1],c,phi)
+#        q[n] = sum(P[n,:])
+#        P[n,:] = P[n,:]/q[n]
+#    return P,q
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
-                P[n,m] += multinomial(n,p) * fourWay_ew_collisionRate(n,[k for k in p if k > 1],c,phi)
+                p_mul = partitionToMultiset(p)
+                k_vec = [x for x in p if x > 1]
+                factor = (multinomial(n,p)/np.prod(map(factorial, p_mul)))
+                P[n,m] += factor * fourWay_ew_collisionRate(n,k_vec,c,phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
@@ -480,10 +532,20 @@ def P_and_q_xi_pointMass(N,args):
     q = np.zeros(N+1)
     P = np.zeros((N+1,N+1))
     P[1,1] = 1.
+#    for n in xrange(2,N+1):
+#        for m in xrange(1,n):
+#            for p in partitions_constrained(n,m,4):
+#                P[n,m] += multinomial(n,p) * (np.prod(map(factorial,partitionToMultiset(p)))**-1) * fourWay_pointMass_collisionRate(n,[k for k in p if k > 1],phi)
+#        q[n] = sum(P[n,:])
+#        P[n,:] = P[n,:]/q[n]
+
     for n in xrange(2,N+1):
         for m in xrange(1,n):
             for p in partitions_constrained(n,m,4):
-                P[n,m] += multinomial(n,p) * (np.prod(map(factorial,partitionToMultiset(p)))**-1) * fourWay_pointMass_collisionRate(n,[k for k in p if k > 1],phi)
+                p_mul = partitionToMultiset(p)
+                k_vec = [x for x in p if x > 1]
+                factor = (multinomial(n,p)/np.prod(map(factorial, p_mul)))
+                P[n,m] += factor * fourWay_pointMass_collisionRate(n,k_vec,phi)
         q[n] = sum(P[n,:])
         P[n,:] = P[n,:]/q[n]
     return P,q
@@ -674,7 +736,7 @@ def p_and_g(N,coalescentType,args):
         #By adding functions to the local scope, the number of global lookups per-
         # formed in the innermost for-loop is significantly reduced.    
         myProd = np.prod
-        mySubpartitionProb = subpartitionProb
+#        mySubpartitionProb = subpartitionProb
         
 #        # we now iterate over n (first axis of p), and fill out the rest of p
 #        for n in range(1,N+1):
@@ -703,7 +765,8 @@ def p_and_g(N,coalescentType,args):
                     for b1 in range(1,n1):
                         b1Result = pResult/binom(n1,b1)
 #                        kRange = [x for x in range(2,n+1) if x <= n1 and b1 <= n1 - x + 1]
-                        for subPart,b in subpartitionsMultiset(p_mul,b1):
+#                        for subPart,b in subpartitionsMultiset(p_mul,b1):
+                        for subPart,b in NEWSubpartitionsMultiset(p_mul,b1):
 #                            b = s[1]
                             sResult = b1Result*myProd([binom(p_mul[i],subPart[i]) for i in xrange(len(subPart)) if subPart[i] != 0])
 #                            sResult = pResult*mp.mpf(mySubpartitionProb(p_mul,subPart[0],n1,b1,verify=True))
@@ -770,17 +833,7 @@ def jumpProb_xiBet(part,partMul,n,q_vec,args):
 #    modified to work with multiple Precision arithmetics
 #    return (multinomial(n,part,multiplePrecision=True)*mp.mpf(fourWay_beta_collisionRate(n,[x for  x in part if x>1],args[0])))/(np.prod(map(mp.fac,partMul))*q_vec[n])
 
-def jumpProb_xiEW(part,n,q_vec,args):
-    '''
-    similar to the xi_beta-case
-    '''
-    m = []
-    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
-        m.extend(l)
-    #m is an encoding of part as a sequence.
-    return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q_vec[n]
-    
-def jumpProb_xiPointMass(p,p_mul,n,q_vec,args):
+def jumpProb_xiEW(part,partMul,n,q_vec,args):
     '''
     similar to the xi_beta-case
     '''
@@ -788,7 +841,19 @@ def jumpProb_xiPointMass(p,p_mul,n,q_vec,args):
 #    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
 #        m.extend(l)
 #    #m is an encoding of part as a sequence.
-    return multinomial(n,p)*fourWay_pointMass_collisionRate(n,p,args[0])/(q_vec[n] * np.prod(map(factorial,p_mul)))
+#    return multinomial(n,m)*fourWay_ew_collisionRate(n,m,args[0],args[1])/q_vec[n]
+    return (multinomial(n,part)*fourWay_ew_collisionRate(n,[x for  x in part if x>1],args[0],args[1]))/(np.prod(map(factorial,partMul))*q_vec[n])
+    
+def jumpProb_xiPointMass(part,partMul,n,q_vec,args):
+    '''
+    similar to the xi_beta-case
+    '''
+#    m = []
+#    for l in [j*[i] for i,j in enumerate(part) if j!=0]:
+#        m.extend(l)
+#    #m is an encoding of part as a sequence.
+#    return multinomial(n,p)*fourWay_pointMass_collisionRate(n,p,args[0])/(q_vec[n] * np.prod(map(factorial,p_mul)))
+    return (multinomial(n,part)*fourWay_pointMass_collisionRate(n,[x for  x in part if x>1],args[0]))/(np.prod(map(factorial,partMul))*q_vec[n])
 
 def jumpProb_xiKingman(part,n,q_vec,args):
     '''

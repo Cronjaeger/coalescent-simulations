@@ -42,16 +42,16 @@ def plotBar3(SFS1,SFS2,SFS3,W=0.6,col=['cyan','orange','grey'],labels=['series 1
 n = 25
 theta = 4
 trials = 10000
-beta = 1.0
+beta = 1.5
 psi = 0.5
 c = 1. #other values of c are probably not that relevant.
 T_max = float('inf')
 #coalescentType = 'kingman'
-#coalescentType = 'xi_beta'
+coalescentType = 'xi_beta'
 #coalescentType = 'xi_pointMass'
 #coalescentType = 'xi_lambda_beta'
 #coalescentType = 'lambda_beta'
-coalescentType = 'xi_ew'
+#coalescentType = 'xi_ew'
 #coalescentType = 'lambda_ew'
 
 Pi_1 = []
@@ -121,8 +121,9 @@ x = np.arange(1,n)
 #plot normalized spectra
 label1 = 'expected norm. SFS (recursions)'
 label2 = 'emperical mean of norm. SFS'
-pl.plot(x , phi[1:] , color='blue' , label=label1)
-pl.plot(x , Pi2_normSFS_AVG[:-1] , color='red' , label=label2)
+plotBar(phi[1:],Pi2_normSFS_AVG[:-1],col=['cyan','orange'],labels=[label1,label2])
+#pl.plot(x , phi[1:] , color='blue' , label=label1)
+#pl.plot(x , Pi2_normSFS_AVG[:-1] , color='red' , label=label2)
 #pl.plot(x , xi[1:] , color='blue' , label=label1)
 #pl.plot(x , Bet4_SFS_AVG[:-1] , color='red' , label=label2)
 pl.legend(loc='upper right')

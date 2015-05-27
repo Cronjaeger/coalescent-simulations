@@ -240,10 +240,11 @@ class coalescent(object):
 #        SFS = self.SFS
         
         if not(factor):        
-            '''This normalization-factor was suggested by Bjarki Eldon, and
-            seems reasonable. It is not the same factor as the one used in the
-            paper by Birkner, Blath and Eldon (2013)'''
-            normalizationFactor = (len(self.mutations)+1)**-1
+#            '''This normalization-factor was suggested by Bjarki Eldon, and
+#            seems reasonable. It is not the same factor as the one used in the
+#            paper by Birkner, Blath and Eldon (2013)'''
+#            normalizationFactor = (len(self.mutations)+1)**-1
+            normalizationFactor = (max(len(self.mutations), 1) )**-1
         else:
             normalizationFactor = factor**-1
 #        for i,xi in enumerate(SFS):
@@ -430,7 +431,7 @@ class simulateLambdaBeta(simulateLambdaPoint):
 #        b = self.coal.k_current
 #        t += np.random.exponential(self.args[2][b]**-1)
 #        b_New = np.random.choice(b,p=self.args[1][b,:b])
-#        affectedBlocks = list(np.random.choice(b,size=b-b_New+1,replace=False))
+#        affectedBlocks = list(np.random.choice(b,size=b-b_New+ 1,replace=False))
 #        return (t,[affectedBlocks])
 
 class simulateLambdaBeta_FourWay(simulateLambdaBeta):

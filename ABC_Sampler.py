@@ -117,7 +117,7 @@ class ABC_Sampler(object):
         
         return alphas,acceptedData,acceptanceRate
 
-def testSampler(N = 10**2, n_leaves = 100, mutationRate = 5.0, epsilon = 1.0, pseudometric=L2, obsData = False):
+def testSampler(N = 10**2, n_leaves = 100, mutationRate = 5.0, epsilon = 1.0, prior=priorUniform1to2, pseudometric=L2, obsData = False):
 
     if not obsData:
         underlyingCoalescent = lc.simulateKingman(n_leaves,mutationRate*50,float('inf')) #(boost mutationRate)
@@ -127,7 +127,7 @@ def testSampler(N = 10**2, n_leaves = 100, mutationRate = 5.0, epsilon = 1.0, ps
     
     print "Taking %s posterior samples with epsilon = %s"%(str(N),str(round(epsilon,3)))
     t1 = time.time()
-    alphas,data,acceptanceRate = mySampler.samplePosteriorBeta(N,pseudometric,priorUniform1to2,epsilon,n_leaves)
+    alphas,data,acceptanceRate = mySampler.samplePosteriorBeta(N,pseudometric,prior,epsilon,n_leaves)
     t2 = time.time()
     
     print "elapsed time = %s sec \n"%(str(round(t2-t1,3)))

@@ -58,7 +58,7 @@ Pi_1 = []
 Pi_2 = []
 
 coalescentType = coalescentType.lower()
-
+ 
 print "Running %i simulations of a %s coalescent, with n=%i, theta=%s, alpha=%s, phi=%s..."%(trials,coalescentType,n,str(round(theta,3)),str(round(beta,3)),str(round(psi,3)))
 t1 = time.time()
 if coalescentType == 'xi_beta':

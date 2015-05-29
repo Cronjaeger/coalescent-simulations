@@ -90,9 +90,9 @@ class simulateKingmanFiniteSitesMutation(libCoal.simulateKingman):
         return counter
 
 
-def generate_plot_1(n,L,thetaMax,steps=20,N=100):
-    h = thetaMax/steps
-    thetas = np.arange(0,thetaMax,h)+h
+def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
+    h = (thetaMax - thetaMin)/steps
+    thetas = np.arange(thetaMin,thetaMax,h)+h
     avgRate = np.zeros(len(thetas))
     for i,theta in enumerate(thetas):
         simulations = [simulateKingmanFiniteSitesMutation(n,float(theta)/2,L) for z in range(N)]
@@ -109,9 +109,10 @@ def generate_plot_1(n,L,thetaMax,steps=20,N=100):
     label = "L = "+str(L)+" N = "+str(N)+" n ="+str(n)
     pl.plot(thetas/(2.0*L) , avgRate , color='blue' , label=label)
     pl.legend(loc='upper left')
+    pl.savefig("plots/plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
 
 def runTests():
 #    generate_plot_1(n=10,L=50,thetaMax=50,steps=50,N=1000)
-    generate_plot_1(n=10,L=50,thetaMax=1.0,steps=40,N=2000)
+    generate_plot_1(n=10,L=50,thetaMax=1.0,steps=3,N=1000)
 
-runTests()
+#runTests()

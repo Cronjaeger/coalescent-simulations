@@ -9,7 +9,7 @@ import libCoal
 import numpy as np
 import matplotlib.pyplot as pl
 
-class simulateKingmanFiniteSitesMutation(libCoal.simulateKingman):
+class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
     def __init__(self,n,mutationRate,L,*args):
         '''
@@ -57,6 +57,7 @@ class simulateKingmanFiniteSitesMutation(libCoal.simulateKingman):
                 self.sequences[sequenceIndex,j] %= 4
 
                 self.sequences_mutationCount[sequenceIndex] += 1
+
     def getS(self):
         return np.array(self.sequences, dtype=int)
 
@@ -82,20 +83,46 @@ class simulateKingmanFiniteSitesMutation(libCoal.simulateKingman):
                 counter += len(set(mutations))
         return counter
 
-    def countInconsistensies(self):
+    def countInconsistColumnPairs(self,verbose=False):
         counter = float("nan")
         affectedSites = filter(lambda i: self.site_mutationCount[i] > 0, range(self.L) )
-        pass
-        # TODO: Finish this
+        for s1 in affectedSites:
+            for s2 in affectedSites:
+                if s1!=s2 and isInconsistentColumnPair(self.sequences[:,s1],self.sequences[:,s2]):
+                    counter += 1
+                    if verbose:
+                        print "Sites %i and %i are inconsistent"%(s1,s2)
+
         return counter
+
+def isInconsistentColumnPair(c1,c2):
+
+    n = len(c1)
+
+#    AX_rows = map(lambda i: c1[i] == 0 and c2[i] != 0, range(n))
+#    YA_rows = map(lambda i: c1[i] != 0 and c2[i] == 0, range(n))
+#    YX_rows = map(lambda i: c1[i] != 0 and c2[i] != 0, range(n))
+#
+#    AX_occurs = reduce(lambda x,y: x or y, AX_rows)
+#    YA_occurs = reduce(lambda x,y: x or y, YA_rows)
+#    YX_occurs = reduce(lambda x,y: x or y, YX_rows)
+
+    AX_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] == 0 and c2[i] != 0, range(n)))
+    YA_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] != 0 and c2[i] == 0, range(n)))
+    YX_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] != 0 and c2[i] != 0, range(n)))
+
+    return (AX_occurs and YA_occurs and YX_occurs)
+
+
+
 
 
 def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
-    h = (thetaMax - thetaMin)/steps
+    h = (float(thetaMax) - thetaMin)/steps
     thetas = np.arange(thetaMin,thetaMax,h)+h
     avgRate = np.zeros(len(thetas))
     for i,theta in enumerate(thetas):
-        simulations = [simulateKingmanFiniteSitesMutation(n,float(theta)/2,L) for z in range(N)]
+        simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
         rates = []
         for s in simulations:
 #        for i in range(N):

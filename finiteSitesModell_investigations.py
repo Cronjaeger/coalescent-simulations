@@ -8,6 +8,7 @@ Created on Wed May 27 22:17:25 2015
 import libCoal
 import numpy as np
 import matplotlib.pyplot as pl
+from scipy.special import binom
 
 class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
@@ -67,6 +68,12 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
     def getSeq_mutationCount(self):
         return np.array(self.sequences_mutationCount, dtype = int )
 
+    def getSegregatingSites(self):
+        return [j for j in range(self.L) if max(self.sequences[:,j]) > 0]
+
+    def getInvisibleSites(self):
+        return [j for j in range(self.L) if max(self.sequences[:,j])==0 and self.site_mutationCount[j] > 0]
+
     def countSegregatingSites(self):
 #        counter = np.zeros(self.n, dtype = int)
         counter = 0
@@ -84,10 +91,10 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         return counter
 
     def countInconsistColumnPairs(self,verbose=False):
-        counter = float("nan")
+        counter = 0
         affectedSites = filter(lambda i: self.site_mutationCount[i] > 0, range(self.L) )
         for s1 in affectedSites:
-            for s2 in affectedSites:
+            for s2 in filter(lambda x: x > s1 , affectedSites):
                 if s1!=s2 and isInconsistentColumnPair(self.sequences[:,s1],self.sequences[:,s2]):
                     counter += 1
                     if verbose:
@@ -114,32 +121,83 @@ def isInconsistentColumnPair(c1,c2):
     return (AX_occurs and YA_occurs and YX_occurs)
 
 
-
-
-
 def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
+
+    #Run simulations
     h = (float(thetaMax) - thetaMin)/steps
     thetas = np.arange(thetaMin,thetaMax,h)+h
     avgRate = np.zeros(len(thetas))
+    inconsistencyCount = np.zeros(len(thetas))
+    invisibleSiteCount = np.zeros(len(thetas))
     for i,theta in enumerate(thetas):
         simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
         rates = []
+        inconsistencies = []
+        invisibleSites = 0
+        segCounter = 0
         for s in simulations:
 #        for i in range(N):
 #            s = simulations[i]
+
             minimalMutations = s.countMinimalMutations()
             actualMutations = len(s.coal.mutations)
+            segregatingSites = s.countSegregatingSites()
+
+#            siteMutationCounts = s.getSiteMutationCounts()
+
             if minimalMutations > 0:
                 rates.append( float(actualMutations) / minimalMutations )
-        avgRate[i] = np.average(rates)
 
-    label = "L = "+str(L)+" N = "+str(N)+" n ="+str(n)
-    pl.plot(thetas/(2.0*L) , avgRate , color='blue' , label=label)
+                inconsistencies.append(s.countInconsistColumnPairs())
+
+                invisibleSites += len(s.getInvisibleSites())/float(segregatingSites)
+                segCounter += 1
+
+        invisibleSiteCount[i] = invisibleSites/float(segCounter)
+        avgRate[i] = np.average(rates)
+        inconsistencyCount[i] = np.average(inconsistencies) / binom(L,2)
+
+    #generate plot 1
+    pl.figure(1)
+    label = "L,N,n = %i,%i,%i"%(L,N,n)
+    pl.xlabel(r"$\frac{\theta}{L}$")
+    pl.ylabel(r"(actual # mutations) / (# visible mutations)")
+    pl.plot(thetas/L , avgRate , color='blue' , label=label)
     pl.legend(loc='upper left')
     pl.savefig("plots/plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
 
+    #generate plot 2
+    pl.figure(2)
+#    label = "(x;y) = (theta/L ; fraction of inconsistent columns)\nL,N,n = %i,%i,%i"%(L,N,n)
+    label = "L,N,n = %i,%i,%i"%(L,N,n)
+    pl.xlabel(r"$\frac{\theta}{L}$")
+    pl.ylabel(r"#inconsistent column-pairs / $\binom{L}{2}$")
+    pl.plot(thetas/L, inconsistencyCount, color = "red", label = label)
+    pl.legend(loc='upper left')
+    pl.savefig("plots/plot2__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+
+    #generate plot 3
+    pl.figure(3)
+#    label = "(x;y) = (theta/L ; fraction of invisible sites)\nL,N,n = %i,%i,%i"%(L,N,n)
+    label = "L,N,n = %i,%i,%i"%(L,N,n)
+    pl.xlabel(r"$\frac{\theta}{L}$")
+    pl.ylabel(r"#invisible sites / #segregating sites")
+    pl.plot(thetas/L, invisibleSiteCount, color = "green", label = label)
+    pl.legend(loc='upper left')
+    pl.savefig("plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+
+
+#def generate_plot_2(n,L,theta,N=100):
+#    simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
+#    count_inconsistencies_total = 0
+#    for i,s in enumerate(simulations):
+#        count_inconsistencies = s.countInconsistColumnPairs()
+#        count_inconsistencies_total += count_inconsistencies
+
+
+
 def runTests():
 #    generate_plot_1(n=10,L=50,thetaMax=50,steps=50,N=1000)
-    generate_plot_1(n=10,L=50,thetaMax=1.0,steps=3,N=1000)
+    generate_plot_1(n=20,L=200,thetaMax=200,steps=20,N=1000)
 
 #runTests()

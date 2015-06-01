@@ -183,7 +183,7 @@ def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
     pl.xlabel(r"$\frac{\theta}{L}$")
     pl.ylabel(r"#invisible sites / #segregating sites")
     pl.plot(thetas/L, invisibleSiteCount, color = "green", label = label)
-    pl.legend(loc='upper left')
+    pl.legend(loc='upper right')
     pl.savefig("plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
 
 

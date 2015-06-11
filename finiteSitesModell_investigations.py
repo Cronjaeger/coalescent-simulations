@@ -67,7 +67,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
                 self.sequences_mutationCount[sequenceIndex] += 1
 
-    def untillFirstTwoInconsistencies(self):
+    def untillFirstTwoInconsistencies(self,computeS_seq = False):
 
         """
         Step 1, set up everything like we were running
@@ -89,7 +89,11 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         inconsistencyCount = 0
         mutationCounter = 0
         ignoredMutations = list(self.coal.mutations)
+        consideredMutations = []
+#        self.coal.mutations = []
         typeCount =  [0,0,0,0]
+        typeCountList = [list(typeCount)]
+        S_seq = [np.matrix(S)]
 #        inconsistentPairs = []
         """
         type 0 : a column with 3 states
@@ -106,7 +110,8 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
             site_mut_count[m_site] += 1
 
-            t,branch = ignoredMutations.pop(m_index)
+            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter+1)
+            t,branch = mutation[:2]
             affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
 
             for sequenceIndex in affectedSequences:
@@ -118,6 +123,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
             if site_mut_count[m_site] > 1:
 
                 inconsistencyCount += 1
+                mutation += (inconsistencyCount,)
 
                 inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
                 inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
@@ -136,15 +142,34 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 if S[sequenceIndex,m_site] == 0:
                     typeCount[3] += 1
 
+                typeCountList.append(list(typeCount))
+
             mutationCounter += 1
+            consideredMutations.append(mutation)
+            if computeS_seq: S_seq.append(np.matrix(S))
             S_old[:,m_site] = S[:,m_site]
+
+        if computeS_seq:
+            newSeq = zip(consideredMutations,S_seq[1:])
+            newSeq.sort(cmp = lambda x,y: int(np.sign(x[0][0] - y[0][0])))
+            consideredMutations = [x[0] for x in newSeq]
+            S_seq = S_seq[:1] + [x[1] for x in newSeq]
+        else:
+            consideredMutations.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
+            newSeq = []
+
+        self.coal.mutations = consideredMutations
 
         return {"S":S,
                 "mutCount_sites":site_mut_count,
                 "mutCount_sequences":seq_mut_count,
                 "Inconsistencies":inconsistencyCount,
                 "typeCount":typeCount,
-                "typeCount_arr":np.array(typeCount)}
+                "typeCount_arr":np.array(typeCount),
+                "coalescent" : deepcopy(self.coal),
+                "typeCountList" : typeCountList,
+                "newSeq" : newSeq,
+                "S_seq" : S_seq}
 
     def getS(self):
         return np.array(self.sequences, dtype=int)
@@ -278,7 +303,7 @@ def runTests():
 #    generate_plot_1(n=10,L=50,thetaMax=50,steps=50,N=1000)
     generate_plot_1(n=20,L=200,thetaMax=200,steps=20,N=1000)
 
-def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200):
+def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFirst10 = False):
     K_list = [simulator_KingmanFiniteSites(n,mutRate,L,False) for i in xrange(N)]
     totalTypeCount = np.array((0,0,0,0))
     misses = 0
@@ -290,14 +315,37 @@ def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200):
         else:
             misses += 1
 
+    if printFirst10:
+        for K in K_list[:10]:
+            print chronology(K)
+            print ""
+
     return totalTypeCount,N-misses
 
-def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20):
+def chronology(K):
+    events = list(K.coal.jumps)
+    events.extend(K.coal.mutations)
+    events.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
+    return "\n".join(map(eventToString,events))
+
+def eventToString(e):
+    if str(type(e[1])) == "<class 'libCoal.partition'>":
+        return "t = %1.4f\t"%e[0] + str(e[1])
+    if isinstance(e[1], int):
+        outStr = "t = %1.4f\t"%e[0]
+        if len(e) > 5: outStr += " *** Inconsistency number %i *** "%e[5]
+        outStr += "Mutation (%i in order added"%e[4]
+        outStr += "; +%i-mod4 at site %i affecting block %i)"%(e[3],e[2],e[1])
+        return outStr
+    else:
+        print "WTF!",e
+
+def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False):
 
     theta = 1.2 * L
 
     #run simulations
-    typeCounts,N_eff = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta)
+    typeCounts,N_eff = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)
 
     #plot simulation-results
     width = 0.8
@@ -312,3 +360,9 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20):
 #    pl.tight_layout()
     pl.show()
     pl.savefig("plots/bars_stoppedProcess/bar_typeFrequencies_N_%i_L_%i_n_%i.pdf"%(N_eff,L,n))
+
+
+def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)]):
+    for args in arglist:
+        N,L,n = args
+        generatePlot_of_mutationTypes(N,L,n,False)

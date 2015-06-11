@@ -340,7 +340,7 @@ def eventToString(e):
     else:
         print "WTF!",e
 
-def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False):
+def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False,show = False):
 
     theta = 1.2 * L
 
@@ -358,11 +358,22 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
     pl.ylabel("frequency")
     pl.title("Result of %i simulations stopped after 2 events\nsequences = %i    sequence-length = %i"%(N_eff,n,L))
 #    pl.tight_layout()
-    pl.show()
-    pl.savefig("plots/bars_stoppedProcess/bar_typeFrequencies_N_%i_L_%i_n_%i.pdf"%(N_eff,L,n))
+    pl.draw()
+    filename_str = "plots/bars_stoppedProcess/bar_typeFrequencies_N_%i_L_%i_n_%i"%(N_eff,L,n)
+    try:
+        pl.savefig(filename_str+".pdf")
+        pl.savefig(filename_str+".png")
+        pl.savefig(filename_str+".ps")
+        pl.savefig(filename_str+".svg")
+        pl.savefig(filename_str+".eps")
+    except Exception:
+        print "could not save in all formats"
+    if show:
+        pl.show()
 
 
 def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)]):
     for args in arglist:
         N,L,n = args
+        print "Generating plots for N,L,n = %i,%i,%i"%tuple(args)
         generatePlot_of_mutationTypes(N,L,n,False)

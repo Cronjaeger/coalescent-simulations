@@ -12,7 +12,7 @@ if __name__ == "__main__":
     for L in [2, 8, 32, 128, 512, 2048, 8192]:
 #    for L in [2,8,32]:
         for n in (2,8,32,128):
-            arglist.append([11,L,n])
+            arglist.append([1000,L,n])
 
 #    print arglist
 

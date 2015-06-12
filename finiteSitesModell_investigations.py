@@ -90,6 +90,8 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         mutationCounter = 0
         ignoredMutations = list(self.coal.mutations)
         consideredMutations = []
+        deviant_mutations = []
+#        deviant_mutations_indices = []
 #        self.coal.mutations = []
         typeCount =  [0,0,0,0]
         typeCountList = [list(typeCount)]
@@ -110,7 +112,15 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
             site_mut_count[m_site] += 1
 
-            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter+1)
+            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter)
+            """
+            Now a mutatiin has the following as its entries:
+            m[0] : time of mutation
+            m[1] : affected leneage
+            m[2] : affected site
+            m[3] : mutation type (k - shift mod 4)
+            m[4] : a counter -- number of mutations preceeding this one
+            """
             t,branch = mutation[:2]
             affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
 
@@ -144,6 +154,9 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
                 typeCountList.append(list(typeCount))
 
+                deviant_mutations.append(mutation)
+#                deviant_mutations_indices.append(mutationCounter)
+
             mutationCounter += 1
             consideredMutations.append(mutation)
             if computeS_seq: S_seq.append(np.matrix(S))
@@ -169,7 +182,8 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 "coalescent" : deepcopy(self.coal),
                 "typeCountList" : typeCountList,
                 "newSeq" : newSeq,
-                "S_seq" : S_seq}
+                "S_seq" : S_seq,
+                "deviant_mutations": deviant_mutations}
 
     def getS(self):
         return np.array(self.sequences, dtype=int)
@@ -307,11 +321,13 @@ def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFir
     K_list = [simulator_KingmanFiniteSites(n,mutRate,L,False) for i in xrange(N)]
     totalTypeCount = np.array((0,0,0,0))
     misses = 0
+    k_res_List = []
 
     for K in K_list:
         res = K.untillFirstTwoInconsistencies()
         if res["Inconsistencies"] == 2:
             totalTypeCount += res["typeCount_arr"]
+            k_res_List.append([K,res])
         else:
             misses += 1
 
@@ -320,7 +336,7 @@ def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFir
             print chronology(K)
             print ""
 
-    return totalTypeCount,N-misses
+    return totalTypeCount,N-misses,k_res_List
 
 def chronology(K):
     events = list(K.coal.jumps)
@@ -340,12 +356,61 @@ def eventToString(e):
     else:
         print "WTF!",e
 
+def scatterplot_index_and_time_of_abnormal_mutations(N = 1000 , L = 100, n = 20):
+
+    theta = 1.2 * L
+    typeCounts,N_eff,k_res_list = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= False)
+    t1, I1 = np.zeros(N_eff,dtype = float), np.zeros(N_eff,dtype = int)
+    t2, I2 = np.zeros(N_eff,dtype = float), np.zeros(N_eff,dtype = int)
+    i = 0
+    for K,res in k_res_list:
+        mutations =  res["deviant_mutations"]
+        t1[i], I1[i] = mutations[0][0],mutations[0][4]
+        t2[i], I2[i] = mutations[1][0],mutations[1][4]
+        i += 1
+
+    pl.figure()
+
+    pl.subplot(1,2,1)
+    pl.scatter(t1,t2,marker="+",s=10)
+    pl.axis('scaled')
+    pl.xlim(xmin = 0.0)
+    pl.ylim(ymin = 0.0)
+    pl.title("(coalescent) time of mutations")
+    pl.xlabel(r"$t_1$")
+    pl.ylabel(r"$t_2$")
+
+    pl.subplot(1,2,2)
+    pl.scatter(I1,I2,marker="+",s=10)
+    pl.xlim(xmin = 0.0)
+    pl.ylim(ymin = 0.0)
+    pl.axis('scaled')
+    pl.xlabel(r"$i_1$")
+    pl.ylabel(r"$i_2$")
+    pl.title("Index of mutations\n(in order of simulation)")
+
+    pl.suptitle("N = %i      L = %i      n = %i"%(N_eff,L,n))
+
+    filename_str = "plots/scatter_mut1_vs_2/scatter_mut1_vs_2_N_%i_L_%i_n_%i"%(N_eff,L,n)
+    try:
+        pl.savefig(filename_str+".pdf")
+        pl.savefig(filename_str+".png")
+        pl.savefig(filename_str+".ps")
+        pl.savefig(filename_str+".svg")
+        pl.savefig(filename_str+".eps")
+    except Exception:
+        print "could not save in all formats"
+
+    pl.draw()
+
+
 def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False,show = False):
 
     theta = 1.2 * L
+    typeCounts,N_eff,K_list = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)
 
     #run simulations
-    typeCounts,N_eff = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)
+    typeCounts,N_eff = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)[:2]
 
     #plot simulation-results
     width = 0.8
@@ -375,5 +440,11 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
 def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)]):
     for args in arglist:
         N,L,n = args
-        print "Generating plots for N,L,n = %i,%i,%i"%tuple(args)
+        print "Generating plots (barcharts) for N,L,n = %i,%i,%i"%tuple(args)
         generatePlot_of_mutationTypes(N,L,n,False)
+
+def run_generateScatterplots(arglist = [(100,100,20)]):
+    for args in arglist:
+        N,L,n = args
+        print "Generating plots (scatterplts) for N,L,n = %i,%i,%i"%tuple(args)
+        scatterplot_index_and_time_of_abnormal_mutations(N,L,n)

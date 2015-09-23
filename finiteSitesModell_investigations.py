@@ -67,7 +67,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
                 self.sequences_mutationCount[sequenceIndex] += 1
 
-    def untillFirstTwoInconsistencies(self,computeS_seq = False):
+    def untillFirstXInconsistencies(self,computeS_seq = False,X = 2):
 
         """
         Step 1, set up everything like we were running
@@ -104,7 +104,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         type 2 : creating a column with 2 states and incompatibilities
         type 3 : create an invisible state
         """
-        while inconsistencyCount < 2 and mutationCounter < M:
+        while inconsistencyCount < X and mutationCounter < M:
 
             m_index = np.random.randint(M - mutationCounter)
             m_k = np.random.randint(1,4)
@@ -317,15 +317,15 @@ def runTests():
 #    generate_plot_1(n=10,L=50,thetaMax=50,steps=50,N=1000)
     generate_plot_1(n=20,L=200,thetaMax=200,steps=20,N=1000)
 
-def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFirst10 = False):
+def simulateUntillXMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFirst10 = False,X = 2):
     K_list = [simulator_KingmanFiniteSites(n,mutRate,L,False) for i in xrange(N)]
     totalTypeCount = np.array((0,0,0,0))
     misses = 0
     k_res_List = []
 
     for K in K_list:
-        res = K.untillFirstTwoInconsistencies()
-        if res["Inconsistencies"] == 2:
+        res = K.untillFirstXInconsistencies(X = X)
+        if res["Inconsistencies"] == X:
             totalTypeCount += res["typeCount_arr"]
             k_res_List.append([K,res])
         else:
@@ -336,9 +336,14 @@ def simulateUntillTwoMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFir
             print chronology(K)
             print ""
 
-    return totalTypeCount,N-misses,k_res_List
+    N_eff = N - misses
+
+    return totalTypeCount,N_eff,k_res_List
 
 def chronology(K):
+    '''
+    Outputs a String of all events in K, sorted in chronological order
+    '''
     events = list(K.coal.jumps)
     events.extend(K.coal.mutations)
     events.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
@@ -359,7 +364,7 @@ def eventToString(e):
 def scatterplot_index_and_time_of_abnormal_mutations(N = 1000 , L = 100, n = 20):
 
     theta = 1.2 * L
-    typeCounts,N_eff,k_res_list = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= False)
+    typeCounts,N_eff,k_res_list = simulateUntillXMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= False)
     t1, I1 = np.zeros(N_eff,dtype = float), np.zeros(N_eff,dtype = int)
     t2, I2 = np.zeros(N_eff,dtype = float), np.zeros(N_eff,dtype = int)
     i = 0
@@ -404,13 +409,13 @@ def scatterplot_index_and_time_of_abnormal_mutations(N = 1000 , L = 100, n = 20)
     pl.draw()
 
 
-def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False,show = False):
+def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False,show = False, X=2):
 
     theta = 1.2 * L
-    typeCounts,N_eff,K_list = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)
+    typeCounts,N_eff,K_list = simulateUntillXMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10, X = X)
 
     #run simulations
-    typeCounts,N_eff = simulateUntillTwoMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10)[:2]
+    #typeCounts,N_eff = simulateUntillXMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10,X = X)[:2]
 
     #plot simulation-results
     width = 0.8
@@ -419,12 +424,12 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
     pl.figure()
     pl.bar(left,typeCounts,width = width, color = color)
 #    pl.xlabel("Type of incompatibility")
-    pl.xticks(np.arange(1,5),(">2 types","2 types\n>2 mutations\nno incompatibility","2 types\nincompatibility","invisible site"))
+    pl.xticks(np.arange(1,5),("3 types","2 types\n2 mutations\nno incompatibility","2 types\nincompatibility","1 type\n2 mutations"))
     pl.ylabel("frequency")
-    pl.title("Result of %i simulations stopped after 2 events\nsequences = %i    sequence-length = %i"%(N_eff,n,L))
+    pl.title("Result of %i simulations stopped after %i events\nsequences = %i    sequence-length = %i"%(N_eff,X,n,L))
 #    pl.tight_layout()
     pl.draw()
-    filename_str = "plots/bars_stoppedProcess/bar_typeFrequencies_N_%i_L_%i_n_%i"%(N_eff,L,n)
+    filename_str = "plots/bars_stoppedProcess/bar_typeFrequencies_X_%i_N_%i_L_%i_n_%i"%(X,N_eff,L,n)
     try:
         pl.savefig(filename_str+".pdf")
         pl.savefig(filename_str+".png")
@@ -432,16 +437,16 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
         pl.savefig(filename_str+".svg")
         pl.savefig(filename_str+".eps")
     except Exception:
-        print "could not save in all formats"
+        print "could not save in all formats (pdf,png,ps,svg,eps)"
     if show:
         pl.show()
 
 
-def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)]):
+def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)],X = 2):
     for args in arglist:
         N,L,n = args
         print "Generating plots (barcharts) for N,L,n = %i,%i,%i"%tuple(args)
-        generatePlot_of_mutationTypes(N,L,n,False)
+        generatePlot_of_mutationTypes(N=N,L=L,n=n,printFirsrst10 = False,show = False, X = X)
 
 def run_generateScatterplots(arglist = [(100,100,20)]):
     for args in arglist:

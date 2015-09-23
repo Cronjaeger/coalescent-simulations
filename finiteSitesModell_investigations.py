@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as pl
 from scipy.special import binom
 from copy import deepcopy
+from time import ctime
 
 class coalescent_no_SFS(libCoal.coalescent):
     def computeSFS(self):
@@ -445,7 +446,7 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
 def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)],X = 2):
     for args in arglist:
         N,L,n = args
-        print "Generating plots (barcharts) for N,L,n = %i,%i,%i"%tuple(args)
+        print "%s   Generating plots (scatterplts) for N,L,n = %i,%i,%i"%((ctime(),)+tuple(args))
         generatePlot_of_mutationTypes(N=N,L=L,n=n,printFirsrst10 = False,show = False, X = X)
 
 def run_generateScatterplots(arglist = [(100,100,20)]):

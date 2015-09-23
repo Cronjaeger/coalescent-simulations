@@ -12,10 +12,13 @@ N_events_to_Stop_after = 1
 if __name__ == "__main__":
     arglist = []
     #for L in [2, 8, 32, 128, 512, 2048, 8192]:
-    for L in [2,8,32]:
-        for n in (2,8,32,128):
+    for L in [8,512]:
+        for n in [8,128]:
             arglist.append([1000,L,n])
 
+    # Add some BIG parameters (in case the computer terminated too early)
+    arglist.append([1000,2048,8])
+    arglist.append([1000,2048,128])
 #    print arglist
 
     finiteSitesModell_investigations.run_generatePlot_of_mutationTypes(arglist,N_events_to_Stop_after)

@@ -446,7 +446,7 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
 def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)],X = 2):
     for args in arglist:
         N,L,n = args
-        print "%s   Generating plots (scatterplts) for N,L,n = %i,%i,%i"%((ctime(),)+tuple(args))
+        print "%s   Generating plots (Barcharts) for N,L,n,X = %i,%i,%i,%i"%((ctime(),)+tuple(args)+(X,))
         generatePlot_of_mutationTypes(N=N,L=L,n=n,printFirsrst10 = False,show = False, X = X)
 
 def run_generateScatterplots(arglist = [(100,100,20)]):

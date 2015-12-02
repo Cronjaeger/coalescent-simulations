@@ -25,6 +25,31 @@ def simData(N,theta,L):
 
     return S,n
 
+def simData_XExtraMutations(N,L,k,mutationsMustBeVisible =True):
+
+    simTree = simulator_KingmanFiniteSites(N,10*L/2.0,L,False)
+    result = simTree.untillFirstXInconsistencies(X = k)
+
+    if not mutationsMustBeVisible:
+        # assure that we have k more mutations on the underlying tree than
+        # we have segregating sites
+        while result["Inconsistencies"] < k:
+            result = simTree.untillFirstXInconsistencies(X = k)
+    else:
+        # Assure that we have k visible inconsistencies with the infinite sites
+        # model
+        while result["typeCount"][0] + result["typeCount"][2] < k
+            result = simTree.untillFirstXInconsistencies(X = k)
+
+    S_redundantRowsAndColumns = simTree.getS()
+
+    #remove null-rows
+    S1 = withoutNullColumns(S_redundantRowsAndColumns)
+
+    #remove redundant rows, and associate each row with a count-vector n instead
+    S,n = S_and_n(S1)
+
+    return S,n
 
 def withoutNullColumns(S):
     rows,columns = S.shape

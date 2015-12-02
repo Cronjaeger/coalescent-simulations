@@ -286,7 +286,8 @@ class simExchCoalWithMut(object):
     def __init__(self,n,mutationRate = 0,T_max = float('inf'),*args):
         '''
         n = number of individuals
-        mutationRate = Mutation rate of the coalescent.
+        mutationRate = Mutation rate of the coalescent. (expected number of
+        mutations on a given branch)
         T_Max = Time-horizon of the coalescent.
         '''
         self.n = n

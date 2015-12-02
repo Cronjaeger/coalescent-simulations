@@ -326,6 +326,7 @@ def simulateUntillXMutations(N = 1000, n = 20, L = 100, mutRate = 200,printFirst
 
     for K in K_list:
         res = K.untillFirstXInconsistencies(X = X)
+        #Guarentee that we actually got enough mutations.
         if res["Inconsistencies"] == X:
             totalTypeCount += res["typeCount_arr"]
             k_res_List.append([K,res])

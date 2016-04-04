@@ -38,7 +38,7 @@ def simData_XExtraMutations(N,L,k,mutationsMustBeVisible =True):
     else:
         # Assure that we have k visible inconsistencies with the infinite sites
         # model
-        while result["typeCount"][0] + result["typeCount"][2] < k
+        while result["typeCount"][0] + result["typeCount"][2] < k:
             result = simTree.untillFirstXInconsistencies(X = k)
 
     S_redundantRowsAndColumns = simTree.getS()
@@ -50,6 +50,22 @@ def simData_XExtraMutations(N,L,k,mutationsMustBeVisible =True):
     S,n = S_and_n(S1)
 
     return S,n
+
+def simData_k_mutations_total(N,L,k):
+    simTree = simulator_KingmanFiniteSites(N,10.0*k,L,False)
+    result = simTree.until_k_mutations(k)
+
+    #re-run simulations if we didn't get enough mutations.
+    while k > len(result['coalescent'].mutations):
+        simTree = simulator_KingmanFiniteSites(N,10.0*k,L,False)
+        result = simTree.until_k_mutations(k)
+
+    S_redundant_rows_and_columns = result['S']
+    S_redundant_columns, Nr = S_and_n( S_redundant_rows_and_columns )
+    S_transpose, Nc = S_and_n( np.transpose(S_redundant_columns) )
+    S = np.transpose(S_transpose)
+    return S,Nr,Nc
+
 
 def withoutNullColumns(S):
     rows,columns = S.shape
@@ -85,7 +101,28 @@ def S_and_n(S):
 
     return S_new,n_vec
 
-def toCSV(S,n,fileName):
+def toCSV(S,Nr,Nc,fileName = False):
+    '''
+    Prints the configuration (S,Nr,Nc) to fileName as a .csv-file.
+    If no filename is provided, prints to std-out.
+    '''
+    a = np.r_[np.c_[np.matrix(Nc), 0] , np.c_[S,Nr]]
+
+    #print a
+
+    # #sort rows so that Nr is in non-ascending order
+    # a = a[a[:,-1].argsort()[::-1]]
+    #
+    # #sort columns such that Nc is in non-ascending order
+    # a = a[:,a[0,:].argsort()[::-1]]
+
+    if fileName == False:
+        print '\n'.join([', '.join([str(a[i,j]) for j in xrange(a.shape[1])]) for i in xrange(a.shape[0])])
+    else:
+        np.savetxt(fileName, a, fmt = '%d', delimiter=", ")
+
+
+def toCSV_old(S,n,fileName):
     a = np.c_[S,n]
 
     #sort rows so that n is in non-ascending order
@@ -156,7 +193,7 @@ def toCSV(S,n,fileName):
 #     S = np.array(raw[:,:-1], dtype = int)
 #     return S,n
 
-def main():
+def main_old():
     #Read from input
     N = int(sys.argv[1])
     theta = float(sys.argv[2])
@@ -190,6 +227,43 @@ def main():
 
     else:
         print "S =\n",S,"\nn=\n",n
+
+def main():
+    #Read from input
+    N = int(sys.argv[1])
+    L = int(sys.argv[2])
+    k = int(sys.argv[3])
+    if len(sys.argv) > 4:
+        save = True
+        path = sys.argv[4]
+        #thetaStr = ("%1.4f"%theta).replace('.','pt')
+        fileName = path+"/psi__N_%i_L_%i_mutations_%i.csv"%(N,L,k)
+    else:
+        save = False
+
+    # simTree = finiteSitesModell_investigations.simulator_KingmanFiniteSites(N,theta/2,L)
+    #
+    # S_redundantRowsAndColumns = simTree.getS()
+    #
+    # S1 = withoutNullColumns(S_redundantRowsAndColumns)
+    #
+    # S,n = S_and_n(S1)
+
+    S,Nr,Nc = simData_k_mutations_total(N,L,k)
+
+    if save:
+        toCSV(S,Nr,Nc,fileName)
+        print "Output saved to %s"%fileName
+
+        # ##Test
+        # Snew,nnew = psiFromCSV(fileName)
+        # print "successfully loaded from %s"%fileName
+        # print "S =\n",Snew,"\nn=\n",nnew
+
+    else:
+        #print "S =\n",S,"\nn=\n",n
+        toCSV(S,Nr,Nc)
+
 
 if __name__ == '__main__':
     main()

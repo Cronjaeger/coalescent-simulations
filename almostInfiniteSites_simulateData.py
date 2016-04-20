@@ -202,7 +202,9 @@ def main_old():
         save = True
         path = sys.argv[4]
         thetaStr = ("%1.4f"%theta).replace('.','pt')
-        fileName = path+"/psi__N_%i_theta_%s_L_%i.csv"%(N,thetaStr,L)
+#        fileName = path+"/psi__N_%i_theta_%s_L_%i.csv"%(N,thetaStr,L)
+        fileName = path
+        
     else:
         save = False
 

@@ -540,7 +540,7 @@ def scatterplot_index_and_time_of_abnormal_mutations(N = 1000 , L = 100, n = 20)
 
 def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = False,show = False, X=2):
 
-    theta = 1.2 * L
+    theta = 2.0 * L
     typeCounts,N_eff,K_list = simulateUntillXMutations(N = N, n = n , L = L, mutRate=theta, printFirst10= printFirsrst10, X = X)
 
     #run simulations
@@ -548,17 +548,21 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
 
     #plot simulation-results
     width = 0.8
-    color = ("cyan","orange","grey","magenta")
+    #color = ("cyan","orange","grey","magenta")
+    color = ("white","white","white","white")
+    hatch = ("//", ".","\\")
     left = np.arange(1,5) - width/2.0
     pl.figure()
-    pl.bar(left,typeCounts,width = width, color = color)
+    bars = pl.bar(left,typeCounts,width = width, color = color)
+    for bar,pattern in zip(bars[1:],hatch):
+        bar.set_hatch(pattern)
 #    pl.xlabel("Type of incompatibility")
-    pl.xticks(np.arange(1,5),("3 types","2 types\n2 mutations\nno incompatibility","2 types\nincompatibility","1 type\n2 mutations"))
+    pl.xticks(np.arange(1,5),("3 types","2 types\n2 mutations\n3 gammete test passes","2 types\n3 gammete test fails","1 type\n2 mutations"))
     pl.ylabel("frequency")
     pl.title("Result of %i simulations stopped after %i events\nsequences = %i    sequence-length = %i"%(N_eff,X,n,L))
 #    pl.tight_layout()
     pl.draw()
-    filename_str = "plots/bars_stoppedProcess/bar_typeFrequencies_X_%i_N_%i_L_%i_n_%i"%(X,N_eff,L,n)
+    filename_str = "plots/bars_stoppedProcess/bar_typeFrequencies_X_%i_N_%i_L_%i_n_%i_no_color"%(X,N_eff,L,n)
     try:
         pl.savefig(filename_str+".pdf")
         pl.savefig(filename_str+".png")

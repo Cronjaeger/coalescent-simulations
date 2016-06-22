@@ -11,6 +11,7 @@ import matplotlib.pyplot as pl
 from scipy.special import binom
 from copy import deepcopy
 from time import ctime
+from math import log10
 
 class coalescent_no_SFS(libCoal.coalescent):
     def computeSFS(self):
@@ -441,7 +442,7 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
     #Run simulations
 #    h = (float(thetaMax) - thetaMin)/steps
 #    thetas = np.arange(thetaMin,thetaMax,h)+h
-    thetas = np.logspace(thetaMin,thetaMax,steps)
+    thetas = np.logspace(log10(thetaMin),log10(thetaMax),steps)
     typeCouunter_simulationAverages = np.zeros((len(thetas),4))
     averageInconsistencyBlocksizeFrequency = np.zeros((len(thetas),L))
     for i,theta in enumerate(thetas):
@@ -499,7 +500,7 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
 #         inconsistencyCount[i] = np.average(inconsistencies) / binom(L,2)
 
     #generate plot of frequency of number of dirrerent characters:
-    pl.figure()
+    fig = pl.figure(figsize=(20,5))
     pl.suptitle('%i sequences of length %i; %i simulations per point '%(n,L,N))
     pl.subplot(121)
     pl.xlabel(r"$\frac{\theta}{L}$")
@@ -507,16 +508,19 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
     pl.xscale('log')
     for k in (1,2,3,4):
         pl.plot(thetas/L , typeCouunter_simulationAverages[:,k-1], label = '$k = %i$'%k)
-    pl.legend()
+    pl.legend(loc='best')
 
     #generate plot of frequency of incompatability-blocksizes
     pl.subplot(122)
     pl.xlabel(r"$\frac{\theta}{L}$")
-    pl.ylabel("mean frequency of maximal\nincompatible groups of blocks of size s")
+    pl.ylabel("mean frequency of maximal\nincompatible groups of size s")
     pl.xscale('log')
     for k in range(2,11):
         pl.plot(thetas/L , averageInconsistencyBlocksizeFrequency[:,k-1],label = '$s = %i$'%k)
-    pl.legend()
+    pl.legend(loc='best')
+
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.88)
 
     if saveFigures:
         pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.pdf"%(L,N,n))
@@ -524,12 +528,16 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
         pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.eps"%(L,N,n))
         pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.svg"%(L,N,n))
 
-        csv_path = savePath+"jotunPlot__L_%i__N_%i__n_%i.csv"%(L,N,n)
-        csv_out = open(csv_path,w)
-        for vector in [thetas/L]+[[]]+[typeCouunter_simulationAverages[:,k-1] for k in (1,2,3,4)]+[[]]+[averageInconsistencyBlocksizeFrequency[:,k-1] for k in range(2,11)]:
-            csv_out.write(', '.join(['%.10f'%x for x in vector]))
-            csv_out.write('\n')
-        csv_out.close()
+        csv_path = savePath+"jotunPlot__L_%i__N_%i__n_%i"%(L,N,n)
+        #csv_out = open(csv_path,w)
+        array1_out = np.c_[thetas/L , typeCouunter_simulationAverages]
+        np.savetxt(csv_path+'_subfig_1.csv',array1_out,fmt='%10.10f',delimiter = ', ')
+        array2_out = np.c_[thetas/L , averageInconsistencyBlocksizeFrequency[:,2:11]]
+        np.savetxt(csv_path+'_subfig_2.csv',array2_out,fmt='%10.10f',delimiter = ', ')
+        # for vector in [thetas/L]+[[]]+[typeCouunter_simulationAverages[:,k-1] for k in (1,2,3,4)]+[[]]+[averageInconsistencyBlocksizeFrequency[:,k-1] for k in range(2,11)]:
+        #     csv_out.write(', '.join(['%.10f'%x for x in vector]))
+        #     csv_out.write('\n')
+        # csv_out.close()
     pl.show()
 
 

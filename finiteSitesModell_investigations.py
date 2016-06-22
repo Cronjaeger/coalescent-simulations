@@ -347,9 +347,15 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
     def countInconsistencies(self):
         return len(inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences) )
 
+    def getInconsistentColumnPairs(self):
+        return inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences)
+
 def inconsistentColumnPairs(site_mut_count, S):
+    if S.shape[1] != len(site_mut_count):
+        raise ValueError('Number of collumns in S (=%i) does not match length of site_mut_count (=%i)'%(S.shape[1],len(site_mut_count)))
     pairs = []
-    affectedSites = filter(lambda i: site_mut_count[i] > 0, xrange(len(site_mut_count)) )
+    affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
+    #affectedSites = filter(lambda i: site_mut_count[i] > 0, xrange(len(site_mut_count)) )
     for s1 in affectedSites:
         for s2 in filter(lambda x: x > s1 , affectedSites):
             if isInconsistentColumnPair(S[:,s1],S[:,s2]):
@@ -366,8 +372,203 @@ def isInconsistentColumnPair(c1,c2):
 
     return (AX_occurs and YA_occurs and YX_occurs)
 
+def fromEdgesToConnectedComponents(pairs):
+    '''
+    In: a list of edges (i,j) satisfying i < j
+    Out: a list of sets [S_1, S_2, ...] corresponding to the verticees of
+connected components in the graph encoded by the input.
+    '''
+    if len(pairs) == 0:
+        return []
 
-def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
+    # vertices_with_duplicates = reduce( lambda x,y: x+y, pairs)
+    # verticees = list(set(vertices_with_duplicates))
+    # verticees.sort()
+
+
+    #we encode the set of all blocks in the graph by the smallest vertex if.
+    # hence j belongs to the block encoded by i if and only if is the minimum
+    # index in the connected component containing j.
+    blocks = {}
+    block_index = {}
+    # blocks = dict(verticees[0]:set(verticees[0],))
+    # block_indices = dict(verticees[0]:verticees[0])
+    #for v in verticees:
+    # verticees_seen = set([])
+    for edge in pairs:
+
+        vertices_seen = block_index.keys()
+
+        v1 = edge[0]
+        v2 = edge[1]
+
+        if v1 not in vertices_seen and v2 not in vertices_seen:
+            block_index[v1] = v1
+            block_index[v2] = v1
+            blocks[v1] = set([v1,v2])
+
+        if v1 in vertices_seen and v2 not in vertices_seen:
+            block_index[v2] = block_index[v1]
+            blocks[block_index[v1]].add(v2)
+
+        if v1 not in vertices_seen and v2 in vertices_seen:
+            block_index[v1] = block_index[v2]
+            blocks[block_index[v2]].add(v1)
+
+        if v1 in vertices_seen and v2 in vertices_seen:
+            if block_index[v1] != block_index[v2]:
+
+                if block_index[v1] < block_index[v2]:
+                    index_min = block_index[v1]
+                    index_max = block_index[v2]
+                else:
+                    index_max = block_index[v1]
+                    index_min = block_index[v2]
+
+                block_max = blocks.pop(index_max)
+                blocks[index_min] = blocks[index_min].union(block_max)
+
+                for v in block_max:
+                    block_index[v] = index_min
+
+    return blocks.values()
+
+
+def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5,N=100,savePath = ''):
+
+    saveFigures = len(savePath) > 0
+
+    #Run simulations
+#    h = (float(thetaMax) - thetaMin)/steps
+#    thetas = np.arange(thetaMin,thetaMax,h)+h
+    thetas = np.logspace(thetaMin,thetaMax,steps)
+    typeCouunter_simulationAverages = np.zeros((len(thetas),4))
+    averageInconsistencyBlocksizeFrequency = np.zeros((len(thetas),L))
+    for i,theta in enumerate(thetas):
+        simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
+        # rates = []
+        # inconsistencies = []
+        # invisibleSites = 0
+        # segCounter = 0
+        typeCounter = np.zeros((N,4))
+        #for s in simulations:
+        for j in range(N):
+
+            s = simulations[j]
+            S = s.getS()
+
+            for column in range(S.shape[1]):
+                typeCounter[j,len(set(S[:,column]))-1] += 1
+
+
+            incompatible_pairs = s.getInconsistentColumnPairs()
+            incompatible_components = fromEdgesToConnectedComponents(incompatible_pairs)
+            # print incompatible_pairs
+            # print incompatible_components
+            incompatability_group_sizes = map(len,incompatible_components)
+            #incompatability_group_sizes = [len(c) for c in incompatible_components]
+
+
+            for k in incompatability_group_sizes:
+                averageInconsistencyBlocksizeFrequency[i][k -1] += 1
+
+        typeCouunter_simulationAverages[i] = [sum(typeCounter[:,k]) / float(N) for k in range(4)]
+
+        averageInconsistencyBlocksizeFrequency[i] *= 1.0/N
+
+#             minimalMutations = s.countMinimalMutations()
+#             actualMutations = len(s.coal.mutations)
+#             segregatingSites = s.countSegregatingSites()
+#
+# #            siteMutationCounts = s.getSiteMutationCounts()
+#
+#             if minimalMutations > 0:
+#                 rates.append( float(actualMutations) / minimalMutations )
+#
+#                 inconsistencies.append(s.countInconsistencies())
+#
+#                 invisibleSites += len(s.getInvisibleSites())/float(segregatingSites)
+#                 segCounter += 1
+#
+#         if segCounter > 0:
+#             invisibleSiteCount[i] = invisibleSites/float(segCounter)
+#         else:
+#             invisibleSiteCount[i] = 0
+#
+#         avgRate[i] = np.average(rates)
+#         inconsistencyCount[i] = np.average(inconsistencies) / binom(L,2)
+
+    #generate plot of frequency of number of dirrerent characters:
+    pl.figure()
+    pl.suptitle('%i sequences of length %i; %i simulations per point '%(n,L,N))
+    pl.subplot(121)
+    pl.xlabel(r"$\frac{\theta}{L}$")
+    pl.ylabel("mean frequency of loci with k types")
+    pl.xscale('log')
+    for k in (1,2,3,4):
+        pl.plot(thetas/L , typeCouunter_simulationAverages[:,k-1], label = '$k = %i$'%k)
+    pl.legend()
+
+    #generate plot of frequency of incompatability-blocksizes
+    pl.subplot(122)
+    pl.xlabel(r"$\frac{\theta}{L}$")
+    pl.ylabel("mean frequency of maximal\nincompatible groups of blocks of size s")
+    pl.xscale('log')
+    for k in range(2,11):
+        pl.plot(thetas/L , averageInconsistencyBlocksizeFrequency[:,k-1],label = '$s = %i$'%k)
+    pl.legend()
+
+    if saveFigures:
+        pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+        pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.png"%(L,N,n))
+        pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.eps"%(L,N,n))
+        pl.savefig(savePath+"jotunPlot__L_%i__N_%i__n_%i.svg"%(L,N,n))
+
+        csv_path = savePath+"jotunPlot__L_%i__N_%i__n_%i.csv"%(L,N,n)
+        csv_out = open(csv_path,w)
+        for vector in [thetas/L]+[[]]+[typeCouunter_simulationAverages[:,k-1] for k in (1,2,3,4)]+[[]]+[averageInconsistencyBlocksizeFrequency[:,k-1] for k in range(2,11)]:
+            csv_out.write(', '.join(['%.10f'%x for x in vector]))
+            csv_out.write('\n')
+        csv_out.close()
+    pl.show()
+
+
+#     #generate plot 1
+#     pl.figure()
+#     label = "L,N,n = %i,%i,%i"%(L,N,n)
+#     pl.xlabel(r"$\frac{\theta}{L}$")
+#     pl.ylabel(r"(actual # mutations) / (# visible mutations)")
+#     pl.plot(thetas/L , avgRate , color='blue' , label=label)
+#     pl.legend(loc='upper left')
+#     if saveFigures: pl.savefig(savePath+"plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+#
+#     #generate plot 2
+#     pl.figure()
+# #    label = "(x;y) = (theta/L ; fraction of inconsistent columns)\nL,N,n = %i,%i,%i"%(L,N,n)
+#     label = "L,N,n = %i,%i,%i"%(L,N,n)
+#     pl.xlabel(r"$\frac{\theta}{L}$")
+#     pl.ylabel(r"#inconsistent column-pairs / $\binom{L}{2}$")
+#     pl.plot(thetas/L, inconsistencyCount, color = "red", label = label)
+#     pl.legend(loc='upper left')
+#     if saveFigures: pl.savefig(savePath+"plots/plot2__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+#
+#     #generate plot 3
+#     pl.figure()
+# #    label = "(x;y) = (theta/L ; fraction of invisible sites)\nL,N,n = %i,%i,%i"%(L,N,n)
+#     label = "L,N,n = %i,%i,%i"%(L,N,n)
+#     pl.xlabel(r"$\frac{\theta}{L}$")
+#     pl.ylabel(r"#invisible sites / #segregating sites")
+#     pl.plot(thetas/L, invisibleSiteCount, color = "green", label = label)
+#     pl.legend(loc='upper right')
+#     if saveFigures: pl.savefig(savePath+"plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+#     pl.show()
+
+def lol():
+    ds
+
+def generate_plot_1(n = 8,L = 100,thetaMax = 10,thetaMin=0.01,steps=20,N=100,savePath = ''):
+
+    saveFigures = len(savePath) > 0
 
     #Run simulations
     h = (float(thetaMax) - thetaMin)/steps
@@ -377,11 +578,12 @@ def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
     invisibleSiteCount = np.zeros(len(thetas))
     for i,theta in enumerate(thetas):
         simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
-        rates = []
-        inconsistencies = []
-        invisibleSites = 0
-        segCounter = 0
+        # rates = []
+        # inconsistencies = []
+        # invisibleSites = 0
+        # segCounter = 0
         for s in simulations:
+
 #        for i in range(N):
 #            s = simulations[i]
 
@@ -394,12 +596,16 @@ def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
             if minimalMutations > 0:
                 rates.append( float(actualMutations) / minimalMutations )
 
-                inconsistencies.append(s.countInconsistColumnPairs())
+                inconsistencies.append(s.countInconsistencies())
 
                 invisibleSites += len(s.getInvisibleSites())/float(segregatingSites)
                 segCounter += 1
 
-        invisibleSiteCount[i] = invisibleSites/float(segCounter)
+        if segCounter > 0:
+            invisibleSiteCount[i] = invisibleSites/float(segCounter)
+        else:
+            invisibleSiteCount[i] = 0
+
         avgRate[i] = np.average(rates)
         inconsistencyCount[i] = np.average(inconsistencies) / binom(L,2)
 
@@ -410,28 +616,28 @@ def generate_plot_1(n,L,thetaMax,thetaMin=0,steps=20,N=100):
     pl.ylabel(r"(actual # mutations) / (# visible mutations)")
     pl.plot(thetas/L , avgRate , color='blue' , label=label)
     pl.legend(loc='upper left')
-    pl.savefig("plots/plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+    if saveFigures: pl.savefig(savePath+"plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
 
     #generate plot 2
     pl.figure()
-#    label = "(x;y) = (theta/L ; fraction of inconsistent columns)\nL,N,n = %i,%i,%i"%(L,N,n)
+    #    label = "(x;y) = (theta/L ; fraction of inconsistent columns)\nL,N,n = %i,%i,%i"%(L,N,n)
     label = "L,N,n = %i,%i,%i"%(L,N,n)
     pl.xlabel(r"$\frac{\theta}{L}$")
     pl.ylabel(r"#inconsistent column-pairs / $\binom{L}{2}$")
     pl.plot(thetas/L, inconsistencyCount, color = "red", label = label)
     pl.legend(loc='upper left')
-    pl.savefig("plots/plot2__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+    if saveFigures: pl.savefig(savePath+"plots/plot2__L_%i__N_%i__n_%i.pdf"%(L,N,n))
 
     #generate plot 3
     pl.figure()
-#    label = "(x;y) = (theta/L ; fraction of invisible sites)\nL,N,n = %i,%i,%i"%(L,N,n)
+    #    label = "(x;y) = (theta/L ; fraction of invisible sites)\nL,N,n = %i,%i,%i"%(L,N,n)
     label = "L,N,n = %i,%i,%i"%(L,N,n)
     pl.xlabel(r"$\frac{\theta}{L}$")
     pl.ylabel(r"#invisible sites / #segregating sites")
     pl.plot(thetas/L, invisibleSiteCount, color = "green", label = label)
     pl.legend(loc='upper right')
-    pl.savefig("plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
-
+    if saveFigures: pl.savefig(savePath+"plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
+    pl.show()
 
 #def generate_plot_2(n,L,theta,N=100):
 #    simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]

@@ -440,19 +440,14 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
     saveFigures = len(savePath) > 0
 
     #Run simulations
-#    h = (float(thetaMax) - thetaMin)/steps
-#    thetas = np.arange(thetaMin,thetaMax,h)+h
     thetas = np.logspace(log10(thetaMin),log10(thetaMax),steps)
     typeCouunter_simulationAverages = np.zeros((len(thetas),4))
     averageInconsistencyBlocksizeFrequency = np.zeros((len(thetas),L))
     for i,theta in enumerate(thetas):
+
         simulations = [simulator_KingmanFiniteSites(n,float(theta)/2,L) for z in range(N)]
-        # rates = []
-        # inconsistencies = []
-        # invisibleSites = 0
-        # segCounter = 0
         typeCounter = np.zeros((N,4))
-        #for s in simulations:
+
         for j in range(N):
 
             s = simulations[j]
@@ -477,28 +472,6 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
 
         averageInconsistencyBlocksizeFrequency[i] *= 1.0/N
 
-#             minimalMutations = s.countMinimalMutations()
-#             actualMutations = len(s.coal.mutations)
-#             segregatingSites = s.countSegregatingSites()
-#
-# #            siteMutationCounts = s.getSiteMutationCounts()
-#
-#             if minimalMutations > 0:
-#                 rates.append( float(actualMutations) / minimalMutations )
-#
-#                 inconsistencies.append(s.countInconsistencies())
-#
-#                 invisibleSites += len(s.getInvisibleSites())/float(segregatingSites)
-#                 segCounter += 1
-#
-#         if segCounter > 0:
-#             invisibleSiteCount[i] = invisibleSites/float(segCounter)
-#         else:
-#             invisibleSiteCount[i] = 0
-#
-#         avgRate[i] = np.average(rates)
-#         inconsistencyCount[i] = np.average(inconsistencies) / binom(L,2)
-
     #generate plot of frequency of number of dirrerent characters:
     fig = pl.figure(figsize=(20,5))
     pl.suptitle('%i sequences of length %i; %i simulations per point '%(n,L,N))
@@ -515,7 +488,8 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
     pl.xlabel(r"$\frac{\theta}{L}$")
     pl.ylabel("mean frequency of maximal\nincompatible groups of size s")
     pl.xscale('log')
-    for k in range(2,11):
+    blocksizelist = [2,3,4,5,10,25,50]
+    for k in blocksizelist:
         pl.plot(thetas/L , averageInconsistencyBlocksizeFrequency[:,k-1],label = '$s = %i$'%k)
     pl.legend(loc='best')
 
@@ -532,47 +506,13 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
         #csv_out = open(csv_path,w)
         array1_out = np.c_[thetas/L , typeCouunter_simulationAverages]
         np.savetxt(csv_path+'_subfig_1.csv',array1_out,fmt='%10.10f',delimiter = ', ')
-        array2_out = np.c_[thetas/L , averageInconsistencyBlocksizeFrequency[:,2:11]]
+        array2_out = np.c_[thetas/L , averageInconsistencyBlocksizeFrequency[:,blocksizelist]]
         np.savetxt(csv_path+'_subfig_2.csv',array2_out,fmt='%10.10f',delimiter = ', ')
         # for vector in [thetas/L]+[[]]+[typeCouunter_simulationAverages[:,k-1] for k in (1,2,3,4)]+[[]]+[averageInconsistencyBlocksizeFrequency[:,k-1] for k in range(2,11)]:
         #     csv_out.write(', '.join(['%.10f'%x for x in vector]))
         #     csv_out.write('\n')
         # csv_out.close()
     pl.show()
-
-
-#     #generate plot 1
-#     pl.figure()
-#     label = "L,N,n = %i,%i,%i"%(L,N,n)
-#     pl.xlabel(r"$\frac{\theta}{L}$")
-#     pl.ylabel(r"(actual # mutations) / (# visible mutations)")
-#     pl.plot(thetas/L , avgRate , color='blue' , label=label)
-#     pl.legend(loc='upper left')
-#     if saveFigures: pl.savefig(savePath+"plot1__L_%i__N_%i__n_%i.pdf"%(L,N,n))
-#
-#     #generate plot 2
-#     pl.figure()
-# #    label = "(x;y) = (theta/L ; fraction of inconsistent columns)\nL,N,n = %i,%i,%i"%(L,N,n)
-#     label = "L,N,n = %i,%i,%i"%(L,N,n)
-#     pl.xlabel(r"$\frac{\theta}{L}$")
-#     pl.ylabel(r"#inconsistent column-pairs / $\binom{L}{2}$")
-#     pl.plot(thetas/L, inconsistencyCount, color = "red", label = label)
-#     pl.legend(loc='upper left')
-#     if saveFigures: pl.savefig(savePath+"plots/plot2__L_%i__N_%i__n_%i.pdf"%(L,N,n))
-#
-#     #generate plot 3
-#     pl.figure()
-# #    label = "(x;y) = (theta/L ; fraction of invisible sites)\nL,N,n = %i,%i,%i"%(L,N,n)
-#     label = "L,N,n = %i,%i,%i"%(L,N,n)
-#     pl.xlabel(r"$\frac{\theta}{L}$")
-#     pl.ylabel(r"#invisible sites / #segregating sites")
-#     pl.plot(thetas/L, invisibleSiteCount, color = "green", label = label)
-#     pl.legend(loc='upper right')
-#     if saveFigures: pl.savefig(savePath+"plots/plot3__L_%i__N_%i__n_%i.pdf"%(L,N,n))
-#     pl.show()
-
-def lol():
-    ds
 
 def generate_plot_1(n = 8,L = 100,thetaMax = 10,thetaMin=0.01,steps=20,N=100,savePath = ''):
 

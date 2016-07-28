@@ -51,14 +51,20 @@ def simData_XExtraMutations(N,L,k,mutationsMustBeVisible =True):
 
     return S,n
 
-def simData_k_mutations_total(N,L,k):
+def simData_k_mutations_total(N,L,k,mutation_must_be_visible = True):
     simTree = simulator_KingmanFiniteSites(N,10.0*k,L,False)
-    result = simTree.until_k_mutations(k)
+    if mutation_must_be_visible:
+        result = simTree.until_k_visible_mutations(k)
+    else:
+        result = simTree.until_k_mutations(k)
 
     #re-run simulations if we didn't get enough mutations.
     while k > len(result['coalescent'].mutations):
         simTree = simulator_KingmanFiniteSites(N,10.0*k,L,False)
-        result = simTree.until_k_mutations(k)
+        if mutation_must_be_visible:
+            result = simTree.until_k_visible_mutations(k)
+        else:
+            result = simTree.until_k_mutations(k)
 
     S_redundant_rows_and_columns = result['S']
     S_redundant_columns, Nr = S_and_n( S_redundant_rows_and_columns )
@@ -204,7 +210,7 @@ def main_old():
         thetaStr = ("%1.4f"%theta).replace('.','pt')
 #        fileName = path+"/psi__N_%i_theta_%s_L_%i.csv"%(N,thetaStr,L)
         fileName = path
-        
+
     else:
         save = False
 

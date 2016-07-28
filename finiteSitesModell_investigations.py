@@ -69,6 +69,245 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
                 self.sequences_mutationCount[sequenceIndex] += 1
 
+    def untillFirstXInconsistencies(self,computeS_seq = False,X = 2):
+
+        """
+        Step 1, set up everything like we were running
+        computeAncestralConfiguration
+        """
+        M = len(self.coal.mutations)
+        S = np.zeros((self.n,self.L),dtype=int)
+        S_old = np.array(S)
+        site_mut_count = np.zeros(self.L,dtype=int)
+        seq_mut_count = np.zeros(self.n, dtype=int)
+#        affectedSites = np.random.randint(self.L, size = M)
+#        mutationType = np.random.randint(1,4,size = M)
+
+        '''
+        Step 2, randomly iterate over the list of mutations.
+        Mutaions, untill the number of added mutations exceeds the number of
+        segregating sited by two.
+        '''
+        inconsistencyCount = 0
+        mutationCounter = 0
+        ignoredMutations = list(self.coal.mutations)
+        consideredMutations = []
+        deviant_mutations = []
+#        deviant_mutations_indices = []
+#        self.coal.mutations = []
+        typeCount =  [0,0,0,0]
+        typeCountList = [list(typeCount)]
+        S_seq = [np.matrix(S)]
+#        inconsistentPairs = []
+        """
+        type 0 : a column with 3 states
+        type 1 : a column with 2 states and >2 mutations
+               : (no incompatibility w. other states)
+        type 2 : creating a column with 2 states and incompatibilities
+        type 3 : create an invisible state
+        """
+        while inconsistencyCount < X and mutationCounter < M:
+
+            m_index = np.random.randint(M - mutationCounter)
+            m_k = np.random.randint(1,4)
+            m_site = np.random.randint(self.L)
+
+            site_mut_count[m_site] += 1
+
+            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter)
+            """
+            Now a mutatiin has the following as its entries:
+            m[0] : time of mutation
+            m[1] : affected leneage
+            m[2] : affected site
+            m[3] : mutation type (k - shift mod 4)
+            m[4] : a counter -- number of mutations preceeding this one
+            """
+            t,branch = mutation[:2]
+            affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
+
+            for sequenceIndex in affectedSequences:
+                S[sequenceIndex,m_site] += m_k
+                S[sequenceIndex,m_site] %= 4
+                seq_mut_count[sequenceIndex] += 1
+
+#            if site_mut_count[m_site] > 1 and S[sequenceIndex,m_site] != 0:
+            if site_mut_count[m_site] > 1:
+
+                inconsistencyCount += 1
+                mutation += (inconsistencyCount,)
+
+                inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
+                inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+
+                newInconsistencies = len(inconsistent_columns_new) > len(inconsistent_columns_old)
+
+                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) > 1:
+                    typeCount[0] += 1
+
+                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
+                    if newInconsistencies:
+                        typeCount[2] += 1
+                    else:
+                        typeCount[1] += 1
+
+                if S[sequenceIndex,m_site] == 0:
+                    typeCount[3] += 1
+
+                typeCountList.append(list(typeCount))
+
+                deviant_mutations.append(mutation)
+#                deviant_mutations_indices.append(mutationCounter)
+
+            mutationCounter += 1
+            consideredMutations.append(mutation)
+            if computeS_seq: S_seq.append(np.matrix(S))
+            S_old[:,m_site] = S[:,m_site]
+
+        if computeS_seq:
+            newSeq = zip(consideredMutations,S_seq[1:])
+            newSeq.sort(cmp = lambda x,y: int(np.sign(x[0][0] - y[0][0])))
+            consideredMutations = [x[0] for x in newSeq]
+            S_seq = S_seq[:1] + [x[1] for x in newSeq]
+        else:
+            consideredMutations.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
+            newSeq = []
+
+        self.coal.mutations = consideredMutations
+
+        return {"S":S,
+                "mutCount_sites":site_mut_count,
+                "mutCount_sequences":seq_mut_count,
+                "Inconsistencies":inconsistencyCount,
+                "typeCount":typeCount,
+                "typeCount_arr":np.array(typeCount),
+                "coalescent" : deepcopy(self.coal),
+                "typeCountList" : typeCountList,
+                "newSeq" : newSeq,
+                "S_seq" : S_seq,
+                "deviant_mutations": deviant_mutations}
+
+    def until_k_visible_mutations(self,k = 10):
+
+        """
+        Step 1, set up everything like we were running
+        computeAncestralConfiguration
+        """
+        computeS_seq = False,
+        M = len(self.coal.mutations)
+        S = np.zeros((self.n,self.L),dtype=int)
+        S_old = np.array(S)
+        site_mut_count = np.zeros(self.L,dtype=int)
+        seq_mut_count = np.zeros(self.n, dtype=int)
+#        affectedSites = np.random.randint(self.L, size = M)
+#        mutationType = np.random.randint(1,4,size = M)
+
+        '''
+        Step 2, randomly iterate over the list of mutations,
+        untill enough mutations have occurred.
+        '''
+        inconsistencyCount = 0
+        mutationCounter = 0
+        ignoredMutations = list(self.coal.mutations)
+        consideredMutations = []
+        deviant_mutations = []
+#        deviant_mutations_indices = []
+#        self.coal.mutations = []
+        typeCount =  [0,0,0,0]
+        # typeCountList = [list(typeCount)]
+        # S_seq = [np.matrix(S)]
+#        inconsistentPairs = []
+        """
+        type 0 : a column with 3 states
+        type 1 : a column with 2 states and >2 mutations
+               : (no incompatibility w. other states)
+        type 2 : creating a column with 2 states and incompatibilities
+        type 3 : create an invisible state
+        """
+        while typeCount[0]+typeCount[2] < k and mutationCounter < M:
+
+            m_index = np.random.randint(M - mutationCounter)
+            m_k = np.random.randint(1,4)
+            m_site = np.random.randint(self.L)
+
+            site_mut_count[m_site] += 1
+
+            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter)
+            """
+            Now a mutatiin has the following as its entries:
+            m[0] : time of mutation
+            m[1] : affected leneage
+            m[2] : affected site
+            m[3] : mutation type (k - shift mod 4)
+            m[4] : a counter -- number of mutations preceeding this one
+            """
+            t,branch = mutation[:2]
+            affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
+
+            for sequenceIndex in affectedSequences:
+                S[sequenceIndex,m_site] += m_k
+                S[sequenceIndex,m_site] %= 4
+                seq_mut_count[sequenceIndex] += 1
+
+#            if site_mut_count[m_site] > 1 and S[sequenceIndex,m_site] != 0:
+            if site_mut_count[m_site] > 1:
+
+                inconsistencyCount += 1
+                mutation += (inconsistencyCount,)
+
+                inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
+                inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+
+                newInconsistencies = len(inconsistent_columns_new) > len(inconsistent_columns_old)
+
+                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) > 1:
+                    typeCount[0] += 1
+
+                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
+                    if newInconsistencies:
+                        typeCount[2] += 1
+                    else:
+                        typeCount[1] += 1
+
+                if S[sequenceIndex,m_site] == 0:
+                    typeCount[3] += 1
+
+                # typeCountList.append(list(typeCount))
+
+                deviant_mutations.append(mutation)
+#                deviant_mutations_indices.append(mutationCounter)
+
+            mutationCounter += 1
+            consideredMutations.append(mutation)
+            # if computeS_seq: S_seq.append(np.matrix(S))
+            S_old[:,m_site] = S[:,m_site]
+
+        # if computeS_seq:
+        #     newSeq = zip(consideredMutations,S_seq[1:])
+        #     newSeq.sort(cmp = lambda x,y: int(np.sign(x[0][0] - y[0][0])))
+        #     consideredMutations = [x[0] for x in newSeq]
+        #     S_seq = S_seq[:1] + [x[1] for x in newSeq]
+        # else:
+        #    consideredMutations.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
+        #    newSeq = []
+            consideredMutations.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
+            # newSeq = []
+
+
+        self.coal.mutations = consideredMutations
+
+        return {"S":S,
+                "mutCount_sites":site_mut_count,
+                "mutCount_sequences":seq_mut_count,
+                "Inconsistencies":inconsistencyCount,
+                "typeCount":typeCount,
+                "typeCount_arr":np.array(typeCount),
+                "coalescent" : deepcopy(self.coal),
+                # "typeCountList" : typeCountList,
+                # "newSeq" : newSeq,
+                # "S_seq" : S_seq,
+                "deviant_mutations": deviant_mutations}
+
     def until_k_mutations(self,k = 10):
         '''
         Samples K mutations from self.muitations, and discards the rest.
@@ -196,124 +435,6 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         #                 "deviant_mutations": deviant_mutations
             }
 
-    def untillFirstXInconsistencies(self,computeS_seq = False,X = 2):
-
-        """
-        Step 1, set up everything like we were running
-        computeAncestralConfiguration
-        """
-        M = len(self.coal.mutations)
-        S = np.zeros((self.n,self.L),dtype=int)
-        S_old = np.array(S)
-        site_mut_count = np.zeros(self.L,dtype=int)
-        seq_mut_count = np.zeros(self.n, dtype=int)
-#        affectedSites = np.random.randint(self.L, size = M)
-#        mutationType = np.random.randint(1,4,size = M)
-
-        '''
-        Step 2, randomly iterate over the list of mutations.
-        Mutaions, untill the number of added mutations exceeds the number of
-        segregating sited by two.
-        '''
-        inconsistencyCount = 0
-        mutationCounter = 0
-        ignoredMutations = list(self.coal.mutations)
-        consideredMutations = []
-        deviant_mutations = []
-#        deviant_mutations_indices = []
-#        self.coal.mutations = []
-        typeCount =  [0,0,0,0]
-        typeCountList = [list(typeCount)]
-        S_seq = [np.matrix(S)]
-#        inconsistentPairs = []
-        """
-        type 0 : a column with 3 states
-        type 1 : a column with 2 states and >2 mutations
-               : (no incompatibility w. other states)
-        type 2 : creating a column with 2 states and incompatibilities
-        type 3 : create an invisible state
-        """
-        while inconsistencyCount < X and mutationCounter < M:
-
-            m_index = np.random.randint(M - mutationCounter)
-            m_k = np.random.randint(1,4)
-            m_site = np.random.randint(self.L)
-
-            site_mut_count[m_site] += 1
-
-            mutation = ignoredMutations.pop(m_index) + (m_site, m_k,mutationCounter)
-            """
-            Now a mutatiin has the following as its entries:
-            m[0] : time of mutation
-            m[1] : affected leneage
-            m[2] : affected site
-            m[3] : mutation type (k - shift mod 4)
-            m[4] : a counter -- number of mutations preceeding this one
-            """
-            t,branch = mutation[:2]
-            affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
-
-            for sequenceIndex in affectedSequences:
-                S[sequenceIndex,m_site] += m_k
-                S[sequenceIndex,m_site] %= 4
-                seq_mut_count[sequenceIndex] += 1
-
-#            if site_mut_count[m_site] > 1 and S[sequenceIndex,m_site] != 0:
-            if site_mut_count[m_site] > 1:
-
-                inconsistencyCount += 1
-                mutation += (inconsistencyCount,)
-
-                inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
-                inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
-
-                newInconsistencies = len(inconsistent_columns_new) > len(inconsistent_columns_old)
-
-                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) > 1:
-                    typeCount[0] += 1
-
-                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
-                    if newInconsistencies:
-                        typeCount[2] += 1
-                    else:
-                        typeCount[1] += 1
-
-                if S[sequenceIndex,m_site] == 0:
-                    typeCount[3] += 1
-
-                typeCountList.append(list(typeCount))
-
-                deviant_mutations.append(mutation)
-#                deviant_mutations_indices.append(mutationCounter)
-
-            mutationCounter += 1
-            consideredMutations.append(mutation)
-            if computeS_seq: S_seq.append(np.matrix(S))
-            S_old[:,m_site] = S[:,m_site]
-
-        if computeS_seq:
-            newSeq = zip(consideredMutations,S_seq[1:])
-            newSeq.sort(cmp = lambda x,y: int(np.sign(x[0][0] - y[0][0])))
-            consideredMutations = [x[0] for x in newSeq]
-            S_seq = S_seq[:1] + [x[1] for x in newSeq]
-        else:
-            consideredMutations.sort(cmp = lambda x,y: int(np.sign(x[0] - y[0])))
-            newSeq = []
-
-        self.coal.mutations = consideredMutations
-
-        return {"S":S,
-                "mutCount_sites":site_mut_count,
-                "mutCount_sequences":seq_mut_count,
-                "Inconsistencies":inconsistencyCount,
-                "typeCount":typeCount,
-                "typeCount_arr":np.array(typeCount),
-                "coalescent" : deepcopy(self.coal),
-                "typeCountList" : typeCountList,
-                "newSeq" : newSeq,
-                "S_seq" : S_seq,
-                "deviant_mutations": deviant_mutations}
-
     def getS(self):
         return np.array(self.sequences, dtype=int)
 
@@ -434,10 +555,37 @@ connected components in the graph encoded by the input.
 
     return blocks.values()
 
+def printPairListWithDegrees(pairs,components):
+    vertices_with_duplicates = reduce( lambda x,y: x+y, pairs)
+    verticees = list(set(vertices_with_duplicates))
+    verticees.sort()
+
+    degree = dict([(v,0) for v in verticees])
+
+    for v1,v2 in pairs:
+        degree[v1] += 1
+        degree[v2] += 1
+
+    degreeList = degree.items()
+    degreeList.sort(cmp = lambda x,y: y[1] - x[1])
+
+    print 'vertices (%i total):'%len(verticees)
+    print verticees
+    print '\nedges (%i total):'%len(pairs)
+    print set(pairs)
+    print '\nconnected components:(%i total)'%len(components)
+    print components
+    print '\ndegrees (as (vertex,degree) ):'
+    print degreeList
+
+
 
 def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5,N=100,savePath = ''):
 
     saveFigures = len(savePath) > 0
+
+    print_a_larger_than_10 = 10
+    print_a_50 = True
 
     #Run simulations
     thetas = np.logspace(log10(thetaMin),log10(thetaMax),steps)
@@ -466,6 +614,11 @@ def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5
 
 
             for k in incompatability_group_sizes:
+                if print_a_larger_than_10 > 0 and k >= 10:
+                    print 'Incompatitility graph: generated with (n,L,theta) = (%i,%i,%10.5f):\n'%(n,L,theta)
+                    printPairListWithDegrees(incompatible_pairs,incompatible_components)
+                    print_a_larger_than_10 -= 1
+                    print '-'*80
                 averageInconsistencyBlocksizeFrequency[i][k -1] += 1
 
         typeCouunter_simulationAverages[i] = [sum(typeCounter[:,k]) / float(N) for k in range(4)]

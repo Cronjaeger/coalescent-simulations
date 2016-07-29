@@ -224,7 +224,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         type 2 : creating a column with 2 states and incompatibilities
         type 3 : create an invisible state
         """
-        while typeCount[0]+typeCount[2] < k and mutationCounter < M:
+        while mutationCounter - (typeCount[1]+typeCount[3]) < k and mutationCounter < M:
 
             m_index = np.random.randint(M - mutationCounter)
             m_k = np.random.randint(1,4)

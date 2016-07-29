@@ -34,6 +34,9 @@ theta = 100
 #         print "saved to %s\n"%fileName
 
 if simulation_type == 'fixed number of segregating sites':
+    # n_list = [5,10,20]
+    # k_list = [0,2,5,10]
+    # samples = [1]
     n_list = [i for i in range(2,21)]
     k_list = [i for i in range(0,21)]
     L = 1000
@@ -51,6 +54,9 @@ if simulation_type == 'fixed number of segregating sites':
 
         toCSV(S,Nr,Nc,fileName)
         print "saved to %s\n"%fileName
+        # print '\nn=%i\tk=%i\tsample %i'%(n,k,sample_no)
+        # toCSV(S,Nr,Nc)
+
 
 
 else:

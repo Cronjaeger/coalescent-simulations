@@ -6,7 +6,8 @@ from time import ctime
 simulation_type = 'fixed number of segregating sites'
 EXCESS_MUTATIONS_MUST_BE_VISIBLE = True
 
-path = "./simData/fixed_number_of_segregating_sites"
+#path = "./simData/fixed_number_of_segregating_sites"
+path = "./simData/fixed_number_of_segregating_sites__n_10_b_8_1000_samples"
 
 # n_list = [2**i for i in range(1,11)]
 # theta_list = [10.0**i for i in range(-2,4)]
@@ -34,19 +35,20 @@ theta = 100
 #         print "saved to %s\n"%fileName
 
 if simulation_type == 'fixed number of segregating sites':
-    # n_list = [5,10,20]
-    # k_list = [0,2,5,10]
+    n_list = [10]
+    k_list = [8]
     # samples = [1]
-    n_list = [i for i in range(2,21)]
-    k_list = [i for i in range(0,21)]
+#    n_list = [i for i in range(2,21)]
+#    k_list = [i for i in range(0,21)]
     L = 1000
-    samples = range(1,31)
+    samples = range(1,1001)
+#    samples = range(1,31)
     # theta = 100
     argList = [(a,b,c) for a in n_list for b in k_list for c in samples]
 
     for n,k,sample_no in argList:
         # print n,k,L
-        fileName = path+"/psi__N_%i_L_%i__mutations_%i__sample_%i.csv"%(n,L,k,sample_no)
+        fileName = path+"/psi__N_%i_L_%i__mutations_%i__sample_%04i.csv"%(n,L,k,sample_no)
         S,Nr,Nc = simData_k_mutations_total(n,L,k)
 
         # while len(Nc) < k:

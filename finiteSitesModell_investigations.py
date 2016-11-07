@@ -880,6 +880,7 @@ def generatePlot_of_mutationTypes(N = 1000,L = 100, n = 20, printFirsrst10 = Fal
         print "could not save in all formats (pdf,png,ps,svg,eps)"
     if show:
         pl.show()
+    np.savetxt(filename_str+".csv", np.array(typeCounts,ndmin=2),fmt='%d', delimiter = ', ',header = "(a) 3 types, (b) 2 types 2 mutations 3 gammete test passes, (c) 2 types 3 gammete test fails, (d) 1 type 2 mutations")
 
 
 def run_generatePlot_of_mutationTypes(arglist = [(1000,100,20)],X = 2):

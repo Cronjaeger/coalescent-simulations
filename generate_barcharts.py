@@ -6,6 +6,8 @@ Created on Thu Jun 11 17:31:49 2015
 """
 
 import finiteSitesModell_investigations
+import matplotlib
+matplotlib.use('Agg')
 
 N_events_to_Stop_after = 1
 

@@ -145,14 +145,17 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) > 1:
                     typeCount[0] += 1
 
-                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
+                elif len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
                     if newInconsistencies:
                         typeCount[2] += 1
                     else:
                         typeCount[1] += 1
 
-                if S[sequenceIndex,m_site] == 0:
+                #if S[sequenceIndex,m_site] == 0:
+                elif len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 0:
                     typeCount[3] += 1
+                else:
+                    raise Error("An exception which defies categorization has occurred. This should not happen!")
 
                 typeCountList.append(list(typeCount))
 
@@ -263,14 +266,16 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) > 1:
                     typeCount[0] += 1
 
-                if len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
+                elif len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 1:
                     if newInconsistencies:
                         typeCount[2] += 1
                     else:
                         typeCount[1] += 1
 
-                if S[sequenceIndex,m_site] == 0:
+                elif len(set((S[i,m_site] for i in xrange(S.shape[0]))) - set((0,))) == 0:
                     typeCount[3] += 1
+                else:
+                    raise Error("An exception which defies categorization has occurred. This should not happen!")
 
                 # typeCountList.append(list(typeCount))
 

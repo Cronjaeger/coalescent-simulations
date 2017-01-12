@@ -49,7 +49,6 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 #        self.sequences_mutationCount = np.zeros(self.n, dtype=int)
 #        self.sequences = np.zeros((self.n,self.L),dtype=int)
 
-
     def postSimulationSteps(self):
         if self.compute_ancestral_configuration_on_initialization:
             self.computeAncestralConfiguration()
@@ -582,8 +581,6 @@ def printPairListWithDegrees(pairs,components):
     print components
     print '\ndegrees (as (vertex,degree) ):'
     print degreeList
-
-
 
 def generate_plots_for_jotun(n = 8,L = 100,thetaMax = 100,thetaMin=0.001,steps=5,N=100,savePath = ''):
 

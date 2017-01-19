@@ -476,7 +476,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
     def getInconsistentColumnPairs(self):
         return inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences)
 
-def inconsistentColumnPairs(site_mut_count, S):
+def inconsistentColumnPairs(site_mut_count, S, ancestral_type_known = True):
     if S.shape[1] != len(site_mut_count):
         raise ValueError('Number of collumns in S (=%i) does not match length of site_mut_count (=%i)'%(S.shape[1],len(site_mut_count)))
     pairs = []
@@ -484,19 +484,60 @@ def inconsistentColumnPairs(site_mut_count, S):
     #affectedSites = filter(lambda i: site_mut_count[i] > 0, xrange(len(site_mut_count)) )
     for s1 in affectedSites:
         for s2 in filter(lambda x: x > s1 , affectedSites):
-            if isInconsistentColumnPair(S[:,s1],S[:,s2]):
+            #if not three_gammete_test(S[:,s1],S[:,s2]):
+            if not compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
                 pairs.append((s1,s2))
     return pairs
 
-def isInconsistentColumnPair(c1,c2):
+def inconsistentColumnPairs_simple(S, ancestral_type_known = True):
+    pairs = []
+    affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
+    for s1 in affectedSites:
+        for s2 in filter(lambda x: x > s1 , affectedSites):
+            if not compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
+                pairs.append((s1,s2))
+    return pairs
 
+
+def three_gammete_test(c1,c2):
+    '''
+    Takes two columns/or characters.
+    Returns False if the characters contain all three of the gammetes (not 0, 0)
+    (not 0, not 0) and (0, not 0). Returns True otherwise.
+    '''
     n = len(c1)
 
     AX_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] == 0 and c2[i] != 0, range(n)))
     YA_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] != 0 and c2[i] == 0, range(n)))
     YX_occurs = reduce(lambda x,y: x or y, map(lambda i: c1[i] != 0 and c2[i] != 0, range(n)))
 
-    return (AX_occurs and YA_occurs and YX_occurs)
+    return not(AX_occurs and YA_occurs and YX_occurs)
+
+def compatibility_test(c1,c2, ancestral_type_known = False, ancestral_type = (0,0)):
+    '''
+    Takes two columns of equal length (representing characters on a phylogeny),
+    and returns true if and only if they are compatible (in the sense that the
+    number of mutations nessecary to place both characters on a single tree is
+    the sum of the numbr of mutations nessecary to place each character on a
+    tree individually)
+    '''
+    if len(c1) != len(c2): raise(ValueError('Cannot compare characters of unequal length'))
+
+    states_1 = set(c1)
+    states_2 = set(c2)
+
+    gammetes = set(zip(c1,c2))
+
+    if ancestral_type_known:
+        gammetes.add((0,0)) # gammetes is a set; only has effect when (0,0) not already present.
+
+    n_states_1 = len(states_1)
+    n_states_2 = len(states_2)
+
+    n_gammetes = len(set(gammetes))
+
+    return n_gammetes <= n_states_1 + n_states_2 - 1 #,states_1,states_2,gammetes
+
 
 def fromEdgesToConnectedComponents(pairs):
     '''

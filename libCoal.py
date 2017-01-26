@@ -159,6 +159,17 @@ class coalescent(object):
             chain.append(deepcopy(x[1]))
         return chain
 
+    def getChain_with_times(self):
+        return deepcopy(self.jumps)
+
+    def getChain_all_events(self):
+        jumps = deepcopy(self.jumps)
+        mutations = deepcopy(self.mutations)
+        events = mutations + jumps
+        events.sort(cmp = lambda x,y: 2*int(x[0] - y[0] >= 0.0) - 1, reverse=True)
+        return events
+
+
     def getNumberPartitionChain(self):
         chain = []
         for x in self.jumps:

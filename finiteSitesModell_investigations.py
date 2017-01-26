@@ -13,7 +13,11 @@ from copy import deepcopy
 from time import ctime
 from math import log10
 
-class coalescent_no_SFS(libCoal.coalescent):
+class coalescent_finiteSites(libCoal.coalescent):
+    '''
+    functionally identical to libCoal.coalescent. Only practical difference
+    being that the site frequency spectrum is not computed.
+    '''
     def computeSFS(self):
         pass
 
@@ -32,11 +36,12 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         self.T_MRCA = float('inf')
         self.args = args
         self.SFS = np.zeros(n)
-        self.coal = coalescent_no_SFS(libCoal.partition([[i] for i in range(n)]))
+        self.coal = coalescent_finiteSites(libCoal.partition([[i] for i in range(n)]))
 #        self.simulateCoalescent(self.args)
         self.L = L
         self.MRCA_seq = np.zeros(self.L,dtype=int)
         self.site_mutationCount = np.zeros(self.L,dtype=int)
+        #self.mutations_with_site_and_type = [] # lists of tuples of the form [(time,lineage,site,k)]
         self.sequences_mutationCount = np.zeros(self.n, dtype=int)
         self.sequences = np.zeros((self.n,self.L),dtype=int)
         self.compute_ancestral_configuration_on_initialization = compute_ancestral_configuration_on_initialization
@@ -49,6 +54,9 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 #        self.sequences_mutationCount = np.zeros(self.n, dtype=int)
 #        self.sequences = np.zeros((self.n,self.L),dtype=int)
 
+    # def getMutations_withSitesAndShifts(self):
+    #     return deepcopy(self.mutations_with_site_and_type)
+
     def postSimulationSteps(self):
         if self.compute_ancestral_configuration_on_initialization:
             self.computeAncestralConfiguration()
@@ -56,11 +64,12 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
     def computeAncestralConfiguration(self):
         affectedSites = np.random.randint(self.L, size=len(self.coal.mutations))
         mutationType = np.random.randint(1,4,size = len(self.coal.mutations))
+        self.coal.mutations = [self.coal.mutations[i] + (affectedSites[i], mutationType[i],i) for i in xrange(len(self.coal.mutations))]
         for i in range(len(self.coal.mutations)):
             j = affectedSites[i]
             k = mutationType[i]
             self.site_mutationCount[j] += 1
-            t,branch = self.coal.mutations[i]
+            t, branch = self.coal.mutations[i][:2]
             affectedSequences = self.coal.getStateNoCoppy(t).blocks[branch]
             for sequenceIndex in affectedSequences:
                 self.sequences[sequenceIndex,j] += k
@@ -85,7 +94,7 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         '''
         Step 2, randomly iterate over the list of mutations.
         Mutaions, untill the number of added mutations exceeds the number of
-        segregating sited by two.
+        segregating sites by X.
         '''
         inconsistencyCount = 0
         mutationCounter = 0
@@ -136,8 +145,11 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 inconsistencyCount += 1
                 mutation += (inconsistencyCount,)
 
-                inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
-                inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+                # inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
+                # inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+                inconsistent_columns_new = inconsistentColumnPairs(S)
+                inconsistent_columns_old = inconsistentColumnPairs(S_old)
+
 
                 newInconsistencies = len(inconsistent_columns_new) > len(inconsistent_columns_old)
 
@@ -257,8 +269,11 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
                 inconsistencyCount += 1
                 mutation += (inconsistencyCount,)
 
-                inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
-                inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+                # inconsistent_columns_new = inconsistentColumnPairs(site_mut_count,S)
+                # inconsistent_columns_old = inconsistentColumnPairs([ i - int(i==m_site) for i in site_mut_count],S_old)
+                inconsistent_columns_new = inconsistentColumnPairs(S)
+                inconsistent_columns_old = inconsistentColumnPairs(S_old)
+
 
                 newInconsistencies = len(inconsistent_columns_new) > len(inconsistent_columns_old)
 
@@ -471,25 +486,27 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
         return counter
 
     def countInconsistencies(self):
-        return len(inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences) )
+        #return len(inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences) )
+        return len(inconsistentColumnPairs(S = self.sequences) )
 
     def getInconsistentColumnPairs(self):
-        return inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences)
+        #return inconsistentColumnPairs(site_mut_count = self.site_mutationCount , S = self.sequences)
+        return inconsistentColumnPairs(S = self.sequences)
 
-def inconsistentColumnPairs(site_mut_count, S, ancestral_type_known = True):
-    if S.shape[1] != len(site_mut_count):
-        raise ValueError('Number of collumns in S (=%i) does not match length of site_mut_count (=%i)'%(S.shape[1],len(site_mut_count)))
-    pairs = []
-    affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
-    #affectedSites = filter(lambda i: site_mut_count[i] > 0, xrange(len(site_mut_count)) )
-    for s1 in affectedSites:
-        for s2 in filter(lambda x: x > s1 , affectedSites):
-            #if not three_gammete_test(S[:,s1],S[:,s2]):
-            if not compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
-                pairs.append((s1,s2))
-    return pairs
+# def inconsistentColumnPairs(site_mut_count, S, ancestral_type_known = True):
+#     if S.shape[1] != len(site_mut_count):
+#         raise ValueError('Number of collumns in S (=%i) does not match length of site_mut_count (=%i)'%(S.shape[1],len(site_mut_count)))
+#     pairs = []
+#     affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
+#     #affectedSites = filter(lambda i: site_mut_count[i] > 0, xrange(len(site_mut_count)) )
+#     for s1 in affectedSites:
+#         for s2 in filter(lambda x: x > s1 , affectedSites):
+#             #if not three_gammete_test(S[:,s1],S[:,s2]):
+#             if not compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
+#                 pairs.append((s1,s2))
+#     return pairs
 
-def inconsistentColumnPairs_simple(S, ancestral_type_known = True):
+def inconsistentColumnPairs(S, ancestral_type_known = True):
     pairs = []
     affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
     for s1 in affectedSites:

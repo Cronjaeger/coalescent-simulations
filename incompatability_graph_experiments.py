@@ -106,11 +106,12 @@ def determine_S_of_connected_components(results, print_results = True, return_li
         return
 
 def run_sim(args):
-    p = subprocess.Popen(args,Shell = False, stdout=subprocess.PIPE)
+    p = subprocess.Popen(args,shell = False, stdout=subprocess.PIPE)
     output = p.communicate()[0]
+    #print 'run_sim_output: ',output
     return output
 
-def random_seed():
+def generate_seed():
     '''
     an auxiliary function which allows us to generate a random seed to opass to
     ms, but which depends on the state of the ransom number generator used by
@@ -120,19 +121,94 @@ def random_seed():
     '''
     return int(np.random.sample(1)*(2**31))
 
-def ms_sim_theta(n, theta, N = 1, seed = random_seed(), extra_args = []):
-    args = ['ms',str(n),str(N),'-seeds',str(seed),'-t',str(theta)]+extra_args
+def ms_sim_theta(n, theta, N = 1, rho = 0.0 , nsites = 1000000, seed = generate_seed(), extra_args = []):
+    if n<=1 or theta <0 or N<1: raise(ValueError('invalid input to ms_sim_theta: n=%i, theta=%f, N=%i.'%(n,theta,N)))
+    args = ['ms',str(n),str(N),'-seeds',str(seed),'-t',str(theta),'-rho', str(rho), str(nsites)]+extra_args
     output_raw = run_sim(args)
     output_parsed = parse_ms_output(output_raw)
+    return output_parsed
 
-def ms_sim_sites(n, s, N = 1, seed = random_seed(), extra_args = []):
-    args = ['ms',str(n),str(N),'-seeds',str(seed),'-s',str(s)] + extra_args
+def ms_sim_sites(n, s, N = 1, rho = 0.0, nsites = 1000000, seed = generate_seed(), extra_args = []):
+    if n<=1 or s <1 or N<1: raise(ValueError('invalid input to ms_sim_sites: n=%i, s=%i, N=%i.'%(n,s,N)))
+    args = ['ms',str(n),str(N),'-seeds',str(seed),'-s',str(s),'-rho', str(rho), str(nsites)] + extra_args
     output_raw = run_sim(args)
     output_parsed = parse_ms_output(output_raw)
+    return output_parsed
 
 def parse_ms_output(raw_input):
-    'TODO: refine this!'
-    return split(str(raw_input),'\n')
+    'auxiliary function for parsing raw output of ms'
+    raw = str(raw_input)
+    lines = str.split(raw,'\n')
+    chunks =  str.split(raw,r'//')
+    '''
+    for refenrence, this is what a chunk looks like:
+        ['',
+         'segsites: 2',
+         'positions: 0.3134 0.5345 ',
+         '00',
+         '00',
+         '01',
+         '11',
+         '00',
+         '',
+         '']
+    '''
+    S_list = []
+    positions_list = []
+
+    for chunk in chunks[1:]: #the first entry lists input,seed and trees (if applicable)
+
+        # add an extra empty line to the last line (this way all chunks terminate in two empty lines)
+        if chunk == chunks[-1]:
+            chunk += '\n'
+
+        #separate the chunk into lines
+        chunk_lines = str.split(chunk,'\n')
+
+        #the 0th line is empty
+
+        #the 1st line contains the number of segregating sites
+        segsites_str = chunk_lines[1]
+        n_segsites = parse_segsites(segsites_str)
+
+        # when there are 0 segregating sites, there is nothing more to parse.
+        if n_segsites == 0:
+            positions = []
+            S = np.array([0],dtype=int,ndmin=2)
+
+        #when there are segregating sites, there is also output to parse
+        else:
+            positions_str = chunk_lines[2]
+            positions = parse_positions(positions_str)
+
+            rows_str = chunk_lines[3:-2] # these are the lines which correspond to output
+            rows_arr = map(parse_row,rows_str) #each row is converted to a 1d array of integers
+            S = np.r_[rows_arr]
+
+        positions_list += [positions]
+        S_list.append(S)
+
+    return {'raw':raw,
+            'lines':lines,
+            'metadata':parse_metadata(chunks[0]),
+            'S_list':S_list,
+            'positions':positions_list,
+            'n_segsites':n_segsites,
+            'experiments':zip(S_list,positions_list)}
+
+def parse_segsites(input_str):
+    return int(str.split(input_str)[1])
+
+def parse_positions(input_str):
+    return map(float,str.split(input_str)[1:])
+
+def parse_row(row_str):
+    return np.array([int(i) for i in row_str], dtype = int)
+
+def parse_metadata(input_str):
+    lines = str.split(input_str, '\n')
+    return {'command':lines[0],'seed':int(lines[1])}
+
 
 # def ms_sim(arg_string):
 #     command = 'ms' + arg_string

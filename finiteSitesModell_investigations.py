@@ -12,6 +12,7 @@ from scipy.special import binom
 from copy import deepcopy
 from time import ctime
 from math import log10
+import networkx as nw
 
 class coalescent_finiteSites(libCoal.coalescent):
     '''
@@ -515,6 +516,30 @@ def inconsistentColumnPairs(S, ancestral_type_known = True):
                 pairs.append((s1,s2))
     return pairs
 
+def two_char_compatibility_test(c1,c2, ancestral_type_known = False, ancestral_type = (0,0)):
+    '''
+    Takes two columns of equal length (representing characters on a phylogeny),
+    and returns true if and only if they are compatible (in the sense that the
+    number of mutations nessecary to place both characters on a single tree is
+    the sum of the numbr of mutations nessecary to place each character on a
+    tree individually)
+    '''
+    if len(c1) != len(c2): raise(ValueError('Cannot compare characters of unequal length'))
+
+    #convert input to list
+    c1_list = list(c1)
+    c2_list = list(c2)
+
+    if ancestral_type_known:
+        c1_list.append(ancestral_type[0])
+        c2_list.append(ancestral_type[1])
+
+    G_dict = partition_intersection_graph([c1_list,c2_list])
+
+    G_nw = nw.Graph(G_dict['E'])
+
+    return len(nw.cycles.cycle_basis(G_nw)) == 0
+
 
 def three_gammete_test(c1,c2):
     '''
@@ -530,10 +555,11 @@ def three_gammete_test(c1,c2):
 
     return not(AX_occurs and YA_occurs and YX_occurs)
 
-def compatibility_test(c1,c2, ancestral_type_known = False, ancestral_type = (0,0)):
+def compatibility_criterion_1(c1,c2, ancestral_type_known = False, ancestral_type = (0,0)):
     '''
+    THIS CRITERION IS NESSECARY BUT INSUFFICIENT FOR PAIRWISE COMPATIBILITY!
     Takes two columns of equal length (representing characters on a phylogeny),
-    and returns true if and only if they are compatible (in the sense that the
+    and returns true if (NOT only if) they are compatible (in the sense that the
     number of mutations nessecary to place both characters on a single tree is
     the sum of the numbr of mutations nessecary to place each character on a
     tree individually)
@@ -555,6 +581,38 @@ def compatibility_test(c1,c2, ancestral_type_known = False, ancestral_type = (0,
 
     return n_gammetes <= n_states_1 + n_states_2 - 1 #,states_1,states_2,gammetes
 
+def partition_intersection_graph(chars):
+    '''
+    accepts a collection (e.g. a list) of characters, and generates their partition
+intersection graph G, as a dictionary, where G['V'] = nodes, and G['E'] = edges
+    '''
+    nodes = []
+    for i,char in enumerate(chars):
+        p = to_partition(char)
+        for block in p:
+            nodes.append((i,tuple(block)))
+
+    edges = []
+    for i, a in enumerate(nodes):
+        for b in nodes[i+1:]:
+            if len(set(a[1]).intersection(set(b[1]))) > 0:
+                edges.append([a,b])
+
+    return {'V':nodes,'E':edges}
+
+def to_partition(char):
+    '''
+    in : a character e.g. ['A','A','G','A','T']
+    out: a list of sets. each set corresponds to all indices
+         (from 0 to len(char)-1) with the same state,
+         e.g. [set([0,1,3]),set([2]),set([4])]
+    '''
+    states = set(list(char))
+    return [set( filter( lambda i: char[i] == s, range(len(char)) ) ) for s in states]
+
+def draw_partition_intersection_graph(chars):
+    G = nw.Graph(partition_intersection_graph(chars)['E'])
+    nw.draw(G, node_color = [n[0] for n in G.nodes()])
 
 def fromEdgesToConnectedComponents(pairs):
     '''

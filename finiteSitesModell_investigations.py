@@ -509,7 +509,8 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
 def inconsistentColumnPairs(S, ancestral_type_known = True):
     pairs = []
-    affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
+    discriminant = lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1
+    affectedSites = filter(discriminant, xrange(S.shape[1]))
     for s1 in affectedSites:
         for s2 in filter(lambda x: x > s1 , affectedSites):
             if not two_char_compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
@@ -538,7 +539,8 @@ def two_char_compatibility_test(c1,c2, ancestral_type_known = False, ancestral_t
     # G_nx = nx.Graph(G_dict['E'])
     G_nx = partition_intersection_graph([c1_list,c2_list])
 
-    return len(nx.cycles.cycle_basis(G_nx)) == 0
+    return nx.is_forest(G_nx)
+    #return len(nx.cycles.cycle_basis(G_nx)) == 0
 
 
 def three_gammete_test(c1,c2):

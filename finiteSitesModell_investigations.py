@@ -12,7 +12,7 @@ from scipy.special import binom
 from copy import deepcopy
 from time import ctime
 from math import log10
-import networkx as nw
+import networkx as nx
 
 class coalescent_finiteSites(libCoal.coalescent):
     '''
@@ -512,7 +512,7 @@ def inconsistentColumnPairs(S, ancestral_type_known = True):
     affectedSites = filter(lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1, xrange(S.shape[1]) )
     for s1 in affectedSites:
         for s2 in filter(lambda x: x > s1 , affectedSites):
-            if not compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
+            if not two_char_compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
                 pairs.append((s1,s2))
     return pairs
 
@@ -534,11 +534,11 @@ def two_char_compatibility_test(c1,c2, ancestral_type_known = False, ancestral_t
         c1_list.append(ancestral_type[0])
         c2_list.append(ancestral_type[1])
 
-    G_dict = partition_intersection_graph([c1_list,c2_list])
+    # G_dict = partition_intersection_graph([c1_list,c2_list])
+    # G_nx = nx.Graph(G_dict['E'])
+    G_nx = partition_intersection_graph([c1_list,c2_list])
 
-    G_nw = nw.Graph(G_dict['E'])
-
-    return len(nw.cycles.cycle_basis(G_nw)) == 0
+    return len(nx.cycles.cycle_basis(G_nx)) == 0
 
 
 def three_gammete_test(c1,c2):
@@ -581,10 +581,11 @@ def compatibility_criterion_1(c1,c2, ancestral_type_known = False, ancestral_typ
 
     return n_gammetes <= n_states_1 + n_states_2 - 1 #,states_1,states_2,gammetes
 
-def partition_intersection_graph(chars):
+def partition_intersection_graph(chars, output_as_dict = False):
     '''
-    accepts a collection (e.g. a list) of characters, and generates their partition
-intersection graph G, as a dictionary, where G['V'] = nodes, and G['E'] = edges
+    accepts a collection (e.g. a list) of characters, and generates their
+    partition intersection graph G. The output is either a dictionary, where
+    G['V'] = nodes, and G['E'] = edges, or an object of the type networkx.Graph.
     '''
     nodes = []
     for i,char in enumerate(chars):
@@ -598,7 +599,10 @@ intersection graph G, as a dictionary, where G['V'] = nodes, and G['E'] = edges
             if len(set(a[1]).intersection(set(b[1]))) > 0:
                 edges.append([a,b])
 
-    return {'V':nodes,'E':edges}
+    if output_as_dict:
+        return {'V':nodes,'E':edges}
+    else:
+        return nx.Graph(edges)
 
 def to_partition(char):
     '''
@@ -610,9 +614,15 @@ def to_partition(char):
     states = set(list(char))
     return [set( filter( lambda i: char[i] == s, range(len(char)) ) ) for s in states]
 
-def draw_partition_intersection_graph(chars):
-    G = nw.Graph(partition_intersection_graph(chars)['E'])
-    nw.draw(G, node_color = [n[0] for n in G.nodes()])
+def draw_partition_intersection_graph(representation):
+    if type(representation) == list: # we have been passed a list of characters
+        chars = representation
+        G = partition_intersection_graph(chars)
+    else:
+        assert type(representation) == nx.Graph
+        G = representation
+
+    nx.draw(G, node_color = [n[0] for n in G.nodes()])
 
 def fromEdgesToConnectedComponents(pairs):
     '''

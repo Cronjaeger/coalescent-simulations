@@ -9,16 +9,39 @@ def incompatability_graph(simulation):
     take a simulation, compute the incompatibility graph, return a graph-object
     encoding the incompatibility-graph.
     '''
-    vertices = range(simulation.L)
 
-    edges = simulation.getInconsistentColumnPairs()
+    #Step 1 parse input
+
+    #case: input is a simulated coalescent (used for simulating recurrent mutation)
+    if type(simulation) == simulator_KingmanFiniteSites:
+        vertices = range(simulation.L)
+        edges = simulation.getInconsistentColumnPairs()
+
+    #case: input was generated from parse_ms_output( )
+    elif type(simulation) == tuple:
+        assert type(simulation[0]) == np.ndarray
+        assert type(simulation[1] == list)
+        S = simulation[0]
+        positions = simulation[1]
+
+        vertices = positions
+
+        incomp_pairs = inconsistentColumnPairs(S)
+        edges = [(positions[i],positions[j]) for i,j in incomp_pairs]
+    else:
+        raise ValueError('unknown simulation-argument')
+
+
+    #Step 2: generate graph
+
     # non_trivial_connected_components = fromEdgesToConnectedComponents(edges)
     # trivial_connected_components = [ {v} for v in verticees - set.union(non_trivial_connected_components)]
-
     G = nx.Graph()
     G.add_nodes_from(vertices)
     G.add_edges_from(edges)
+
     return G
+
 
 def simulate_single_graph_and_output_incompatibility_graph(n = 10, L = 20, theta = 20.0, draw_largest_connected_component = False):
     simulation = simulator_KingmanFiniteSites(n,float(theta)/2,L)
@@ -70,8 +93,9 @@ def node_colors(simulation,nodelist = []):
 
 def determine_S_of_connected_components(results, print_results = True, return_list = False, with_header = False):
     '''
-    Will generate and output the characrters of all columns that feature in a connected components
-    of an experiment. Each component is treated separately.
+    Will generate and output the characrters of all columns that contribute to a
+    connected component in the incompatibility-graph associated with a simulated
+    coalescent with mutation. Each component is treated separately.
 
     return_list  indicates if the results printed should also be returned (as a list)
 
@@ -209,6 +233,134 @@ def parse_metadata(input_str):
     lines = str.split(input_str, '\n')
     return {'command':lines[0],'seed':int(lines[1])}
 
+def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site = float(10**-4), theta_high_per_site = float(10**-4), rho_per_site = float(10**-5)):
+
+    theta_low = sites*theta_low_per_site
+    theta_high = sites*theta_high_per_site
+    mutation_rate = theta_high/2.0
+    rho = rho_per_site * sites
+
+    # if seed is not None:
+    #     np.random.seed(seed)
+    # else:
+    #     seed = generate_seed()
+
+    #we simulate a coalescent-model with recombination
+    recomb_sim = ms_sim_theta(n = sequences, theta = theta_low, N = N, rho = rho)
+    recomb_experiments = recomb_sim['experiments']
+
+
+    #we re-set the seed
+    #np.random.seed(seed)
+
+    #we simulate with recurrent mutation under the finite sites model
+    recurrent_sim = [simulator_KingmanFiniteSites(sequences,mutation_rate,sites,True) for i in xrange(N)]
+
+    #we go over each list of experiments, and generate their incompatibility graphs
+    recomb_graphs = map(incompatability_graph,recomb_experiments)
+    recurrent_graphs = map(incompatability_graph,recurrent_sim)
+
+    #we find indices of simulations that contain incompatibilities
+    incomp_recomb = []
+    incomp_recurrent = []
+    for i in xrange(N):
+
+        G_recomb = recomb_graphs[i]
+        if len(G_recomb.edges()) > 0:
+            incomp_recomb.append(i)
+
+        G_recurrent = recurrent_graphs[i]
+        if len(G_recurrent.edges()) > 0:
+            incomp_recurrent.append(i)
+
+    #compute proportion of datasets with incompatabilities
+    incomp_rate_recomb = float(len(incomp_recomb))/N
+    incomp_rate_recurr = float(len(incomp_recurrent))/N
+
+    #return a dictionary of computed values for plotting etc.
+    return {'recomb_sim':recomb_sim,
+            'recurrent_sim':recurrent_sim,
+            'recomb_graphs':recomb_graphs,
+            'recomb_graphs_incomp':[recomb_graphs[i] for i in incomp_recomb],
+            'recurrent_graphs':recurrent_graphs,
+            'recurrent_graphs_incomp':[recurrent_graphs[i] for i in incomp_recurrent],
+            'incomp_rate_recurr':incomp_rate_recurr,
+            'incomp_rate_recomb':incomp_rate_recomb
+            }
+
+def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensions = ['.png','.jpeg','.svg','.pdf']):
+    cols = 2
+    rows = rows_max
+
+    recurrent_graphs_incomp = results['recurrent_graphs_incomp']
+    recomb_graphs_incomp = results['recomb_graphs_incomp']
+
+    recurrent_graphs_to_plot = recurrent_graphs_incomp[:(min(5,len(recurrent_graphs_incomp)))]
+    recomb_graphs_to_plot = recomb_graphs_incomp[:(min(5,len(recomb_graphs_incomp)))]
+
+    rows = max(len(recurrent_graphs_to_plot),len(recomb_graphs_to_plot))
+
+    fig = plt.figure(figsize = (10,4*rows))
+
+    for i,G in enumerate(recurrent_graphs_to_plot):
+
+        G = nx.Graph(G) # copy the graph so we don't change anything in results
+        remove_nodes_with_degree_0(G)
+
+        plt.subplot(rows,cols,2*i+1)
+        nx.draw_spring(G, node_color = 'red')
+
+    for i,G in enumerate(recomb_graphs_to_plot):
+
+        G = nx.Graph(G) # copy the graph so we don't change anything in results
+        remove_nodes_with_degree_0(G)
+
+        plt.subplot(rows,cols,2*(i+1))
+        nx.draw_spring(G, node_color = 'blue')
+
+    # graphs = rows*cols
+    # for i in range(graphs):
+    #     plt.subplot(rows,cols,i)
+    #     #print i
+    #     results = simulate_single_graph_and_output_incompatibility_graph(n =3, L = 100, theta = 10.0, draw_largest_connected_component = True)
+    #     #print
+    #     determine_S_of_connected_components(results,print_results=False,with_header=True)
+    plt.draw()
+    # sample  incompatible datasets from each experiment, and plot them
+
+# def generate_all_k_tuples_of_i_state_characters_on_n_sequences(k,i,n):
+#     out = []
+#     states = range(i)
+#     for
+
+def remove_nodes_with_degree_0(G):
+    assert type(G) == nx.Graph
+    G.remove_nodes_from([x for x,y in G.degree().items() if y == 0])
+
+def generate_random_characters(n_chars,n_states,n_sequences):
+    S_transposed = np.random.randint(n_states, size = (n_chars,n_sequences))
+    return map(list,S_transposed)
+
+def general_compatibility_test(chars):
+    if len(chars) == 2:
+        return two_char_compatibility_test(chars)
+
+    G = nw.Graph(partition_intersection_graph(chars)['E'])
+
+    return restricted_chordal_completion_exists(G)
+
+def restricted_chordal_completion_exists(G):
+    assert type(G) == nw.Graph
+
+    if nw.chordal.is_chordal(G):
+        return True
+    else:
+        return NotImplemented
+        #  C = long_cycles_iterator(G)
+        #  restricted_chordalization_found = False
+        #  while C.next() is not None:
+        #     pass
+            #return restricted_chordal_completion_exists()
 
 # def ms_sim(arg_string):
 #     command = 'ms' + arg_string

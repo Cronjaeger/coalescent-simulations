@@ -8,6 +8,7 @@ from Bio import Phylo
 import numpy as np
 import finiteSitesModell_investigations as fsmi
 from cStringIO import StringIO
+import matplotlib.pyplot as plt
 
 class tree_node(object):
 
@@ -297,19 +298,24 @@ def test(n = 10, theta = 1.0, L = 10):
     sim = fsmi.simulator_KingmanFiniteSites(n,theta,L)
     myTree = sim_to_tree(sim)
 
-    str_newick_test = '(A,(B,C)D);'
-    dpTree_test = dp.Tree.get(data = str_newick_test, schema = 'newick')
-    dpTree_test.print_plot()
+    # str_newick_test = '(A,(B,C)D);'
+    # dpTree_test = dp.Tree.get(data = str_newick_test, schema = 'newick')
+    # dpTree_test.print_plot()
 
     str_newick_sim = myTree.str_newick(True)
+    print str_newick_sim
     dpTree_sim = dp.Tree.get(data = str_newick_sim, schema = 'newick')
     dpTree_sim.print_plot()
 
     phyloTree = Phylo.read(StringIO(str_newick_sim),'newick')
     print phyloTree
-    #Phylo.draw(phyloTree)
+
+    plt.figure()
+    Phylo.draw(phyloTree)
     phyloTree.rooted = True
+    plt.figure()
     Phylo.draw_graphviz(phyloTree, prog = 'dot')
+    plt.draw()
 
     # str_nexus_sim = tree.str_nexus(True)
     # dpTree_sim_nx = dp.Tree.get(data = str_nexus_sim, schema = 'nexus')

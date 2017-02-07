@@ -509,10 +509,13 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
 def inconsistentColumnPairs(S, ancestral_type_known = True):
     pairs = []
-    discriminant = lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1
-    affectedSites = filter(discriminant, xrange(S.shape[1]))
-    for s1 in affectedSites:
-        for s2 in filter(lambda x: x > s1 , affectedSites):
+    col_has_non_0_element = np.apply_along_axis(func1d = any, axis = 0, arr = (S != 0))
+    affectedSites = [i for i,P in enumerate(col_has_non_0_element) if P]
+    # discriminant = lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1
+    # affectedSites = filter(discriminant, xrange(S.shape[1]))
+    for i,s1 in enumerate(affectedSites):
+        #for s2 in filter(lambda x: x > s1 , affectedSites):
+        for s2 in affectedSites[(i+1):]:
             if not two_char_compatibility_test(S[:,s1], S[:,s2], ancestral_type_known = ancestral_type_known):
                 pairs.append((s1,s2))
     return pairs

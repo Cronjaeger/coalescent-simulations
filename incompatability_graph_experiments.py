@@ -233,12 +233,17 @@ def parse_metadata(input_str):
     lines = str.split(input_str, '\n')
     return {'command':lines[0],'seed':int(lines[1])}
 
-def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site = float(10**-4), theta_high_per_site = float(10**-4), rho_per_site = float(10**-5)):
+def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site = float(10**-4), theta_high_per_site = float(10**-4), rho_per_site = float(10**-5), single_recombinant_site = True):
 
     theta_low = sites*theta_low_per_site
     theta_high = sites*theta_high_per_site
     mutation_rate = theta_high/2.0
     rho = rho_per_site * sites
+
+    if single_recombinant_site:
+        recomb_sites = 2
+    else:
+        recomb_sites = sites
 
     # if seed is not None:
     #     np.random.seed(seed)
@@ -246,7 +251,7 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
     #     seed = generate_seed()
 
     #we simulate a coalescent-model with recombination
-    recomb_sim = ms_sim_theta(n = sequences, theta = theta_low, N = N, rho = rho)
+    recomb_sim = ms_sim_theta(n = sequences, theta = theta_low, N = N, rho = rho, nsites = recomb_sites)
     recomb_experiments = recomb_sim['experiments']
 
 
@@ -276,6 +281,10 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
     #compute proportion of datasets with incompatabilities
     incomp_rate_recomb = float(len(incomp_recomb))/N
     incomp_rate_recurr = float(len(incomp_recurrent))/N
+
+    if single_recombinant_site:
+        #to check for wierdness
+        assert all(map(nx.is_bipartite, recomb_graphs))
 
     #return a dictionary of computed values for plotting etc.
     return {'recomb_sim':recomb_sim,
@@ -332,6 +341,25 @@ def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensio
 #     out = []
 #     states = range(i)
 #     for
+
+# def generate_plots_experiment_2(results):
+#     '''
+#     Will analyze the degree-distribution
+#     '''
+#     #compute the average degree_distribution
+#
+#     #compute the averate degree_distribution conditional on incompatibility
+#
+#     #compute the average value of the degree of the most central node.
+#     pass
+
+def compute_staryness(G):
+    '''
+    Takes a graph as input, and returns the quantity deg_max/|E|
+    where deg_max is the maximum degree of a node in the graph, and
+    |E| is the total number of edges in the graph.
+    '''
+    return float(max(G.degree().values()))/len(G.edges())
 
 def remove_nodes_with_degree_0(G):
     assert type(G) == nx.Graph

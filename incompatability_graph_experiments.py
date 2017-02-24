@@ -240,7 +240,7 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
     mutation_rate = theta_high/2.0
     rho = rho_per_site * sites
 
-    if single_recombinant_site:
+    if single_recombinant_site == True:
         recomb_sites = 2
     else:
         recomb_sites = sites
@@ -278,21 +278,26 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
         if len(G_recurrent.edges()) > 0:
             incomp_recurrent.append(i)
 
+    #generate list of non-trivial incompatibility graphs
+    recomb_graphs_incomp = [recomb_graphs[i] for i in incomp_recomb]
+    recurrent_graphs_incomp = [recurrent_graphs[i] for i in incomp_recurrent]
+
     #compute proportion of datasets with incompatabilities
     incomp_rate_recomb = float(len(incomp_recomb))/N
     incomp_rate_recurr = float(len(incomp_recurrent))/N
 
+
     if single_recombinant_site:
-        #to check for wierdness
-        assert all(map(nx.is_bipartite, recomb_graphs))
+        #If the following is false, something has gone terribly wrong
+        assert all(map(nx.is_bipartite, recomb_graphs_incomp))
 
     #return a dictionary of computed values for plotting etc.
     return {'recomb_sim':recomb_sim,
             'recurrent_sim':recurrent_sim,
             'recomb_graphs':recomb_graphs,
-            'recomb_graphs_incomp':[recomb_graphs[i] for i in incomp_recomb],
+            'recomb_graphs_incomp':recomb_graphs_incomp,
             'recurrent_graphs':recurrent_graphs,
-            'recurrent_graphs_incomp':[recurrent_graphs[i] for i in incomp_recurrent],
+            'recurrent_graphs_incomp':recurrent_graphs_incomp,
             'incomp_rate_recurr':incomp_rate_recurr,
             'incomp_rate_recomb':incomp_rate_recomb
             }

@@ -340,6 +340,8 @@ def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensio
     #     #print
     #     determine_S_of_connected_components(results,print_results=False,with_header=True)
     plt.draw()
+
+    return fig
     # sample  incompatible datasets from each experiment, and plot them
 
 # def generate_all_k_tuples_of_i_state_characters_on_n_sequences(k,i,n):
@@ -365,6 +367,32 @@ def compute_staryness(G):
     |E| is the total number of edges in the graph.
     '''
     return float(max(G.degree().values()))/len(G.edges())
+
+def handshake_distribution(G):
+    '''
+    returns a dictionary with entries (v,p(v)) where p(v)=deg(v)/2|E|, v is a
+vertex of G and |E| is the number of edges of V
+    '''
+    d = G.degree() # a dictionary of the form (node, degree)
+    deg_sum = sum(d.values()) # equals twice the number of edges by the handshake-lemma
+    if deg_sum == 0:
+        for key in d.keys():
+            d[key] /= 0.0
+    else:
+        deg_sum = float(deg_sum)
+        for key in d.keys():
+            d[key] /= deg_sum
+    return d
+
+def ranked_handshake_distribution(G):
+    '''
+    returns the values of the handshake-distribution sorted in non-ascending order
+    '''
+    d = handshake_distribution(G)
+    s = d.values()
+    s.sort(reverse=True)
+    return s
+
 
 def remove_nodes_with_degree_0(G):
     assert type(G) == nx.Graph

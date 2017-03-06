@@ -153,8 +153,11 @@ class rooted_tree(object):
         tree_str = '\nBEGIN TREES;\n    Tree phylogeny=%s\nEND;\n'%self.str_newick(label_internal)
         return preamble_str + taxa_str + tree_str
 
-
-def sim_to_tree(sim):
+def sim_to_tree(sim, mutation_filter = lambda x: True):
+    '''
+    Sim should be of the class fsmi.simulator_KingmanFiniteSites
+    mutation m will be dropped if mutation_filter(m)==False
+    '''
     if type(sim) is not fsmi.simulator_KingmanFiniteSites:
         raise Error('currently only implemented for finite sites coalescent (in other cases, mutations must be handled differently than this method does.)')
 
@@ -162,6 +165,8 @@ def sim_to_tree(sim):
 
     mutation_events = coal.getMutations()
     mutation_events.sort(reverse = True) #sort with highest time-index first (closest to MRCA)
+
+    mutation_events = filter(mutation_filter,mutation_events)
 
     merger_events = coal.getChain_with_times()
     merger_events.sort(reverse = True)
@@ -277,6 +282,9 @@ def sim_to_tree(sim):
                                  new_node_key = mutation_key)
 
     return tree
+
+def site_list_to_filter(sites_to_keep):
+    return lambda m: m[2] in sites_to_keep
 
 def label_mutation(mutation, site, allele_before, allele_after):
     return '%i@%i'%(allele_after,site)

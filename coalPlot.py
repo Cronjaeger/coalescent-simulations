@@ -255,8 +255,8 @@ def sim_to_tree(sim, mutation_filter = lambda x: True):
             sequence = np.array(node_above.data['sequence'])
             assert all(sequence == node_below.data['sequence'])
             allele_before = sequence[site]
-            sequence += shift
-            sequence %= 4
+            sequence[site] += shift
+            sequence[site] %= 4
             allele_after = sequence[site]
 
             #update the sequence of the child node

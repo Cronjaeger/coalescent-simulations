@@ -609,6 +609,36 @@ def partition_intersection_graph(chars, output_as_dict = False):
     else:
         return nx.Graph(edges)
 
+def get_informative_collumns(S):
+    '''A columns where all but one character state exists only once is deemed
+    'un-informative'. This method removes all such columns.
+    '''
+    return filter(lambda i: is_informative(S[:,i]), range(S.shape[1]))
+
+def get_non_informative_collumns(S):
+    '''
+    returns the complement of get_informative_collumns(S)
+    '''
+    return filter(lambda i: not is_informative(S[:,i]), range(S.shape[1]))
+
+def is_informative(char,ancestral_type_known = True, ancestral_type = 0):
+    ''' Determine if a character is informative
+
+    Returns: Boolean value
+        True iff char has only one block, or multiple blocks, with the
+        seccond-largest block having size 1 (i.e. if only one non-trivial block)
+    '''
+    char = list(char)
+    if ancestral_type_known:
+        char.append(ancestral_type)
+
+    n_part = map(len,to_partition(char)) # get block-sizes of partition
+    if len(n_part) == 1:
+        return False # len(part)==1 iff single state character
+    else:
+        n_part.sort(reverse = True)
+        return n_part[1] > 1
+
 def to_partition(char):
     '''
     in : a character e.g. ['A','A','G','A','T']

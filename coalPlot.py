@@ -287,8 +287,8 @@ def site_list_to_filter(sites_to_keep):
     return lambda m: m[2] in sites_to_keep
 
 def label_mutation(mutation, site, allele_before, allele_after):
-    return '%i@%i'%(allele_after,site)
-    #return '%ito%i@%i'%(allele_before,allele_after,site)
+    #return '%i@%i'%(allele_after,site)
+    return '%ito%i@%i'%(allele_before,allele_after,site)
 # def label_mutation(m):
 #     return 'x+%i\%4_@site_%i'&(m[4],m[3])
 

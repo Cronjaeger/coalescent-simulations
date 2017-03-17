@@ -397,6 +397,36 @@ def summary(S):
 
     return summary_statistics
 
+def columns_incompatible_with_tree(simulation):
+    '''returns the list of indicees for all columns in the S-matrix of simulation
+which are incompatible with the underlying tree'''
+    #assert isinstance(simulation,simulator_KingmanFiniteSites)
+
+    partition_chain = simulation.coal.getPartitionChain()
+
+    # go from [ [.], [.], ... , [.] ] to [ set([.]), set([.]), ... , set([.]) ]
+    partition_chain = map(lambda partition: map(set, partition.blocks), partition_chain)
+
+    S = simulation.getS()
+    #informative_columns = get_informative_collumns(S)
+    #chars_as_partitions = np.apply_along_axis(func1d = to_partition, axis = 1, arr = S)
+    chars_as_partitions = [ to_partition( S[:,i] ) for i in range(S.shape[1])]
+    informative_indices = [i for i in range(S.shape[1]) if is_informative(S[:,i])]
+
+    compatible_informative_indices = list(informative_indices)
+    for partition in partition_chain:
+        compatible_informative_indices = filter(lambda i: partition_compatibility(partition, chars_as_partitions[i]), compatible_informative_indices)
+
+    incompatible_indices = [i for i in informative_indices if i not in compatible_informative_indices]
+
+    return incompatible_indices
+
+def block_compatibility(block_1,block_2):
+    assert type(block_1) == type(block_2) == set
+    return block_1.issubset(block_2) or block_1.issuperset(block_2) or block_1.isdisjoint(block_2)
+
+def partition_compatibility(part1,part2):
+    return all([all(map(lambda B: block_compatibility(A,B), part2)) for A in part1])
 
 def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensions = ['.png','.jpeg','.svg','.pdf'], base_node_size = 20,alpha = 0.2, drop_deg_0_nodes = True, drop_non_segregating_sites = True):
 
@@ -427,7 +457,7 @@ def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensio
         large_component_sizes_str = ' '.join(map(str,large_component_sizes))
 
         #sumarize aux. statistics
-        title_str = 'chars: %i (%i inf.), state-dist: %s, size: %s,$\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],str(tuple(d_summary['state distribution'].values())),large_component_sizes_str,d_summary['stariness'])
+        title_str = 'chars: %i (%i inf.), state-dist: %s\nsize: %s,$\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],str(tuple(d_summary['state distribution'].values())),large_component_sizes_str,d_summary['stariness'])
 
         sites = results['recurrent_sim'][i].L
 
@@ -648,10 +678,78 @@ def generate_random_characters(n_chars,n_states,n_sequences):
 def general_compatibility_test(chars):
     if len(chars) == 2:
         return two_char_compatibility_test(chars)
+    elif max(map(lambda x: len(set(x)), chars)) <= 3:
+        return three_char_compatibility_test(chars)
+    else:
+        return NotImplemented
 
-    G = nw.Graph(partition_intersection_graph(chars)['E'])
+        # G = nw.Graph(partition_intersection_graph(chars)['E'])
+        # return restricted_chordal_completion_exists(G)
 
-    return restricted_chordal_completion_exists(G)
+def three_state_compatability_test(chars):
+    '''Implementing the compatibility test for 3-state characters of Dress and Steel
+1992'''
+
+    # Each char with three states is turned into a list of three chars.
+    # 1 & 2 state chars are turned into a lsit with that same char as its only
+    # element
+    triples = map(three_state_to_binary_tripple, chars)
+    I = range(len(triples))
+
+    #we deine an S-matrix of extended characters
+    n_chars_extended = sum(map(len,triples))
+    n_seq = len(chars[0])
+    S_extended = np.zeros((n_seq,n_chars_extended),dtype = int)
+
+    I_to_J = dict([(i,[]) for i in I])
+    J_to_I = dict()
+
+    #we fill out the entries in that S-matrix
+    j = 0
+    for i,extended_chars in enumerate(triples):
+        for extended_char in extended_chars:
+            S_extended[j,:] = extended_char
+            I_to_J[i].append(j)
+            J_to_I[j] = i
+            j += 1
+
+    incompatible_pairs = inconsistentColumnPairs(S_extended)
+
+    if len(incompatible_pairs) == 0:
+        return True
+    else:
+        J_to_J = dict([(j,[k for k in I_to_J[J_to_I[j]] if k != j]) for j in J_to_I.keys()])
+
+        K = find_consistent_subset(incompatible_pairs = incompatible_pairs, constraint_dict = J_to_J)
+
+        if K is None:
+            return False
+        else:
+            return True
+
+def find_consistent_subset(incompatible_pairs,constraint_dict):
+    '''Tries to find a subset of the columns of S with the constraint that at
+least one element from each incompatible pair is not included, but at most one
+element of each constaraint-set is excluded (a constraint-set of smaller size
+must have all entries included)'''
+    if len(incompatible_pairs) == 0:
+        pass #TODO: finish this!
+        #return constraint_dict
+    else:
+        #excluded = {}
+        for a,b in incompatible_pairs:
+            pass
+
+
+
+def three_state_to_binary_tripple(char):
+    if len(set(char)) < 3:
+        return [char]
+    elif len(set(char)) == 3:
+        states = set(char)
+        return [ [int(y == x) for y in char] for x in states]
+    else:
+        raise TypeError('char has more than 3 states!')
 
 def restricted_chordal_completion_exists(G):
     '''

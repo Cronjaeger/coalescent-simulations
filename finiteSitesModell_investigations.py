@@ -509,8 +509,8 @@ class simulator_KingmanFiniteSites(libCoal.simulateKingman):
 
 def inconsistentColumnPairs(S, ancestral_type_known = True):
     pairs = []
-    col_has_non_0_element = np.apply_along_axis(func1d = any, axis = 0, arr = (S != 0))
-    affectedSites = [i for i,P in enumerate(col_has_non_0_element) if P]
+    number_of_non_0_elements = np.apply_along_axis(func1d = sum, axis = 0, arr = (S != 0))
+    affectedSites = [i for i,n in enumerate(number_of_non_0_elements) if n > 1]
     # discriminant = lambda i: sum(S[j,i] != 0 for j in xrange(S.shape[0])) > 1
     # affectedSites = filter(discriminant, xrange(S.shape[1]))
     for i,s1 in enumerate(affectedSites):
@@ -613,7 +613,10 @@ def get_informative_collumns(S):
     '''A columns where all but one character state exists only once is deemed
     'un-informative'. This method removes all such columns.
     '''
-    return filter(lambda i: is_informative(S[:,i]), range(S.shape[1]))
+    number_of_non_0_elements = np.apply_along_axis(func1d = sum, axis = 0, arr = (S != 0))
+    segregatingSites = [i for i,n in enumerate(number_of_non_0_elements) if n>1]
+    #return filter(lambda i: is_informative(S[:,i]), range(S.shape[1]))
+    return filter(lambda i: is_informative(S[:,i]), segregatingSites)
 
 def get_non_informative_collumns(S):
     '''
@@ -639,15 +642,34 @@ def is_informative(char,ancestral_type_known = True, ancestral_type = 0):
         n_part.sort(reverse = True)
         return n_part[1] > 1
 
-def to_partition(char):
-    '''
-    in : a character e.g. ['A','A','G','A','T']
-    out: a list of sets. each set corresponds to all indices
-         (from 0 to len(char)-1) with the same state,
-         e.g. [set([0,1,3]),set([2]),set([4])]
-    '''
+def to_partition(char, block_constructor = set):
+    '''in : a character e.g. ['A','A','G','A','T']
+out: a list of sets. each set corresponds to all indices (from 0 to len(char)-1)
+with the same state, e.g. [set([0,1,3]),set([2]),set([4])]. This list will be
+sorted in order of least elements.'''
     states = set(list(char))
-    return [set( filter( lambda i: char[i] == s, range(len(char)) ) ) for s in states]
+    partition = [block_constructor( filter( lambda i: char[i] == s, range(len(char)) ) ) for s in states]
+    partition.sort(key = min)
+    return partition
+
+def count_minimal_vs_actual_mutations(simulation, ancestral_type_known = True):
+    assert isinstance(simulation,simulator_KingmanFiniteSites)
+
+    site_mut_count = simulation.getSiteMutationCounts() # counts actual number of mutations
+
+    S = simulation.getS()
+    if ancestral_type_known:
+        # add a (0,0,0,...,0)-row to S; representing the sequence of the MRCA
+        S = np.r_[S,np.zeros( (1,S.shape[1]), dtype = int)]
+
+    block_counts = [len( to_partition( S[:,i] ) ) for i in range(S.shape[1])]
+    min_mut_counts = [i-1 for i in block_counts]
+
+    A = np.array(site_mut_count)
+    B = np.array(min_mut_counts)
+    C = A - B
+    return C
+
 
 def draw_partition_intersection_graph(representation):
     if type(representation) == list: # we have been passed a list of characters

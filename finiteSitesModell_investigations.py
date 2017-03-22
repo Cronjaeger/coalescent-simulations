@@ -520,6 +520,7 @@ def inconsistentColumnPairs(S, ancestral_type_known = True):
                 pairs.append((s1,s2))
     return pairs
 
+
 def two_char_compatibility_test(c1,c2, ancestral_type_known = False, ancestral_type = (0,0)):
     '''
     Takes two columns of equal length (representing characters on a phylogeny),
@@ -624,6 +625,9 @@ def get_non_informative_collumns(S):
     '''
     return filter(lambda i: not is_informative(S[:,i]), range(S.shape[1]))
 
+def get_essential_state_counts(S):
+    return map(lambda i: number_of_essential_states(S[:,i]), range(S.shape[1]))
+
 def is_informative(char,ancestral_type_known = True, ancestral_type = 0):
     ''' Determine if a character is informative
 
@@ -641,6 +645,18 @@ def is_informative(char,ancestral_type_known = True, ancestral_type = 0):
     else:
         n_part.sort(reverse = True)
         return n_part[1] > 1
+
+def number_of_essential_states(char, ancestral_type_known = True, ancestral_type = 0):
+    '''returns the number of states which appear more than one.
+if the ancestral type is indicated as known, the count of the state indicated by
+the variable 'ancestral_type' artificially has its count boosted by 1.
+    '''
+    char = list(char)
+    if ancestral_type_known:
+        char = char + [ancestral_type]
+    n_part = map(len,to_partition(char))
+    return sum([b > 1 for b in n_part])
+
 
 def to_partition(char, block_constructor = set):
     '''in : a character e.g. ['A','A','G','A','T']

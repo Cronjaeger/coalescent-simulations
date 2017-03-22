@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import subprocess
 from finiteSitesModell_investigations import *
+from TwoSat import *
 
 def incompatability_graph(simulation):
     '''
@@ -686,6 +687,27 @@ def general_compatibility_test(chars):
         # G = nw.Graph(partition_intersection_graph(chars)['E'])
         # return restricted_chordal_completion_exists(G)
 
+def minimal_inconsistent_tripples(S, ancestral_type_known = True, inconsistent_pairs = None, disregard_non_informative = False):
+    if inconsistent_pairs is None:
+        inconsistent_pairs = inconsistentColumnPairs(S,ancestral_type_known)
+    inconsistent_pairs = set(inconsistent_pairs) #set supports faster look-up than list
+
+    min_triples = []
+
+    if disregard_non_informative:
+        informative = filter(lambda i: is_informative(S[:,i],ancestral_type_known), range(S.shape[1]))
+    else:
+        informative = range(S.shape[1])
+    #m = len(informative)
+    for i,s1 in enumerate(informative):
+        for j,s2 in enumerate(informative[(i+1):],start = i+1):
+            if (s1,s2) not in inconsistent_pairs:
+                for s3 in informative[(j+1):]:
+                    if (s1,s3) not in inconsistent_pairs and (s2,s3) not in inconsistent_pairs:
+                        if three_state_compatability_test((S[:,s1],S[:,s2],S[:,s3])):
+                            min_triples.append((s1,s2,s3))
+    return min_triples
+
 def three_state_compatability_test(chars):
     '''Implementing the compatibility test for 3-state characters of Dress and Steel
 1992'''
@@ -693,8 +715,12 @@ def three_state_compatability_test(chars):
     # Each char with three states is turned into a list of three chars.
     # 1 & 2 state chars are turned into a lsit with that same char as its only
     # element
-    triples = map(three_state_to_binary_tripple, chars)
+
+    #triples = map(three_state_to_binary_tripple, chars)
+    triples = map(char_to_binary_tripple, chars) # we turn every character into 3 binary characters
+
     I = range(len(triples))
+    #assert len(I) == (len(chars)) #assert that every character has been extended
 
     #we deine an S-matrix of extended characters
     n_chars_extended = sum(map(len,triples))
@@ -708,7 +734,7 @@ def three_state_compatability_test(chars):
     j = 0
     for i,extended_chars in enumerate(triples):
         for extended_char in extended_chars:
-            S_extended[j,:] = extended_char
+            S_extended[:,j] = extended_char
             I_to_J[i].append(j)
             J_to_I[j] = i
             j += 1
@@ -716,40 +742,300 @@ def three_state_compatability_test(chars):
     incompatible_pairs = inconsistentColumnPairs(S_extended)
 
     if len(incompatible_pairs) == 0:
+        #the entire set of extended chars is compatible
         return True
     else:
-        J_to_J = dict([(j,[k for k in I_to_J[J_to_I[j]] if k != j]) for j in J_to_I.keys()])
+        # J_to_J = dict([(j,[k for k in I_to_J[J_to_I[j]] if k != j]) for j in J_to_I.keys()])
 
-        K = find_consistent_subset(incompatible_pairs = incompatible_pairs, constraint_dict = J_to_J)
+        K = find_consistent_subset(incompatible_pairs = incompatible_pairs, constraint_sets = I_to_J.values())
 
         if K is None:
             return False
         else:
             return True
 
-def find_consistent_subset(incompatible_pairs,constraint_dict):
+def find_consistent_subset(incompatible_pairs,constraint_sets):
     '''Tries to find a subset of the columns of S with the constraint that at
 least one element from each incompatible pair is not included, but at most one
 element of each constaraint-set is excluded (a constraint-set of smaller size
 must have all entries included)'''
-    if len(incompatible_pairs) == 0:
-        pass #TODO: finish this!
-        #return constraint_dict
-    else:
-        #excluded = {}
-        for a,b in incompatible_pairs:
-            pass
+    # if len(incompatible_pairs) == 0:
+    #     pass #TODO: finish this!
+    #     #return constraint_dict
+    # else:
+    #     #excluded = {}
+    #     for a,b in incompatible_pairs:
+    #         pass
 
+    #verify that all constraint-sets have length 3 or 1
+    assert all(map(lambda length: length == 1 or length == 3, map(len,constraint_sets)))
+
+    #these represent characters with only two states. they MUST be included.
+    non_extended_chars = [list(x)[0] for x in constraint_sets if len(x) == 1]
+
+    #In the current implementation all chars should be extended. we verify this.
+    assert len(non_extended_chars) == 0
+
+    # these represent groups of three binary characters created from just one
+    # character
+    extended_chars = [list(x) for x in constraint_sets if len(x) == 3]
+
+    # pruned_extended_chars = list(extended_chars)
+    # for i in non_extended_chars:
+    #     pruned_extended_chars = [filter(lambda j: j!= i,chars) for chars in pruned_extended_chars]
+    #
+    # if min(map(len,len_3_elements)) < 2:
+    #     # no consistent subsdet exists, since 2 out of 3 chars in each
+    #     # trippe must be included.
+    #     return []
+
+    #we first construct all clauses that comprize the 2-SAT problem
+    clauses_from_incompatible_pairs = inconsistent_pairs_to_bool_var_pairs(incompatible_pairs)
+    clauses_from_extended_chars =  flatten(map(constraint_to_bool_var_pairs,extended_chars))
+    clauses_all = clauses_from_incompatible_pairs + clauses_from_extended_chars
+
+    #we then solve the associated two-sat-problem
+    twoSAT_problem = TwoSatSolver(clauses_all)
+    K = twoSAT_problem.solution_trues()
+    K.sort()
+
+    #chars_to_include = non_extended_chars + K
+    #chars_to_include.sort()
+
+    return K
+
+def flatten(LOL):
+    '''Will lake LOL (a List Of Lists)
+    = [[x_1, x_2, ... , x_k], [y_1, y_2, ..., y_r], ... ]
+    and return
+    [x_1,x_2, ... , x_k, y_1, y_2, ... , y_r, ...]'''
+    return reduce(lambda x,y: x+y, LOL, [])
+
+def inconsistent_pairs_to_bool_var_pairs(pair_list):
+    #return reduce(lambda x,y: x+[(bool_var(y[0],True),bool_var(y[1],False)), (bool_var(y[0],False),bool_var(y[1],True))], pair_list, [])
+    return [(bool_var(x,False),bool_var(y,False)) for x,y in pair_list]
+
+def char_to_binary_tripple(char):
+    '''Takes any character with at most 3 states (encoded  as a vector), and
+    returns a list of two state characters (used in the reduction to 2-SAT)
+    outlined in chapter 14 of Gusfeld 2003.
+    A two or one state character will be padded with characters of the form
+    [0,0,...0], to yield 3 characters total.
+    '''
+    states = set(char)
+    if len(states) <= 3:
+        return [ [int(y == x) for y in char] for x in states] + [ len(char)*[0] for i in range(3-len(states))]
+    else:
+        raise TypeError('char has more than 3 states!')
 
 
 def three_state_to_binary_tripple(char):
+    states = set(char)
     if len(set(char)) < 3:
         return [char]
-    elif len(set(char)) == 3:
+    elif len(states) == 3:
         states = set(char)
         return [ [int(y == x) for y in char] for x in states]
     else:
         raise TypeError('char has more than 3 states!')
+
+def constraint_to_bool_var_pairs(constraint):
+    '''
+    takes a collection of at most three indices and returns:
+    [(i ,j), (i, k), (j, k)] if constraint = (i,j,k)
+    [(i,j)] if constraint (i,j)
+    [(i,i)] if constraint (i,i)
+    '''
+    constraint = map(lambda i: bool_var(i,True), constraint)
+    if len(constraint) > 3:
+        raise ValueError('input must be of length at most 3')
+    elif len(constraint) == 3:
+        x = constraint
+        return [ (x[0], x[1]),  (x[0], x[2]),  (x[1], x[2]) ]
+
+    elif len(constraint) == 2:
+        return [ (x[0], x[1]) ]
+    elif len(constraint) == 1:
+        return[(x[0],x[0])]
+    else:
+        raise ValueError('input must be of length at least 1')
+
+
+
+###
+# The 2-SAT solver has been mooved to a separate file.
+###
+# class TwoSatSolver(object):
+#
+#     def __init__(self,clauses):
+#         '''Solve 2-SAT given clauses in conjunctive normal form
+# Clauses should be a list of pairs of bool_var-instances. Each pair (A, B) is
+# interpreted as the statement "A or B".
+#  Given input [(A1, B1), (A2,B2), ... ] we
+# solve the associated 2-SAT problem which in conjunctive normal form is
+# expressed: (A1 or B1) and (A2 or B2) and (A3 or B3) ... '''
+#         if any(map(lambda clause: len(clause) != 2, clauses)):
+#             raise ValueError('clauses must be a list of pairs')
+#         if not all(map(lambda clause: isinstance(clause[0],bool_var) and isinstance(clause[1],bool_var), clauses)):
+#             raise TypeError('All clauses must be pairs of instances of bool_var')
+#
+#         self.clauses = list(clauses)
+#
+#         self.implications = flatten(map(clause_to_edge,self.clauses))
+#
+#         '''D is an implication graph. each implication of the form A => B is
+#         represented as a directed edge from A to B'''
+#         self.D = nx.DiGraph()
+#         self.D.add_edges_from(self.implications)
+#
+#         self.solvable = None
+#         self.solution = []
+#
+#         self.scc = nx.components.strongly_connected_components(self.D)
+#         for c in self.scc:
+#             c_sorted = list(c)
+#             c_sorted.sort()
+#             ''' variables are now sorted by label; It is therefore sufficient to
+#             verify that c_sorted[i] != c_sorted[i+1] holds for all
+#             '''
+#             for i in range(len(c) - 1):
+#                 if c_sorted[i] == c_sorted[i+1]:
+#                     self.sollvable = False
+#
+#         solution_indices = []
+#         if self.solvable is None:
+#             self.solvable = True
+#             C = nx.condensation(self.D)
+#
+#             for v in nx.topological_sort(C):
+#                 literals = C.node[v]['members']
+#                 if set([x.index() for x in literals]).isdisjoint(set(solution_indices)):
+#                     for x in literals:
+#                         self.solution.append(x)
+#                         solution_indices.append(x.index())
+#
+#             self.solution.sort()
+#             assert set(x.index() for x in self.solution) == set([x.index() for x in self.D.nodes()])
+#
+#     def asDict:
+#         return dict([(x.name,x.value) for x in self.solution])
+#
+#     def solution_trues:
+#         return [x.name for x in self.solution if x.value is True]
+#
+#     def solution_false:
+#         return [x.name for x in self.solution if x.value is False]
+#
+# def flatten(LOL):
+#     '''Will lake LOL (a List Of Lists)
+#     = [[x_1, x_2, ... , x_k], [y_1, y_2, ..., y_r], ... ]
+#  and return
+#     [x_1,x_2, ... , x_k, y_1, y_2, ... , y_r, ...]'''
+#     return reduce(lambda x,y: x+y, LOL, [])
+#
+# class bool_var(object):
+#     '''A class to represent boolean variables for use when solving 2-SAT.
+# bool_var(i,True) = "x_i"; bool_var(i,False) = "not x_i";
+# i should be a hashable type
+#     '''
+#     def __init__(self,name,value = True):
+#         #assert type(value) is bool
+#         self.name = name
+#         self.value = bool(value)
+#
+#     def __hash__(self):
+#         return hash((self.name,self.value))
+#
+#     def __str__(self):
+#         return 'x_%s'%str(self.name) if self.value else '-x_%s'%str(self.name)
+#
+#
+#     def __repr__(self):
+#         #return 'boolean variable(%s)'%str(self)
+#         return str(self)
+#
+#     def __eq__(self,other):
+#         if not isinstance(other, bool_var):
+#             return False
+#         else:
+#             return self.name == other.name and self.value == other.value
+#
+#     def __cmp__(self,other):
+#         if not isinstance(other,bool_var):
+#             return cmp(self.name,other)
+#         else:
+#             return cmp(self.name,other.name)
+#
+#     def negated(self):
+#         return bool_var(self.name, not self.value)
+#
+#     def getName(self):
+#         return self.name
+#
+#     def index(self):
+#         '''alias for getName'''
+#         return self.getName()
+#
+#     def as_bool(self):
+#         return self.value
+#
+# def neg(bool_var):
+#     return bool_var.negated()
+#
+# def inconsistent_pairs_to_bool_var_pairs(pair_list):
+#     #return reduce(lambda x,y: x+[(bool_var(y[0],True),bool_var(y[1],False)), (bool_var(y[0],False),bool_var(y[1],True))], pair_list, [])
+#     return [(bool_var(x,False),bool_var(y,False)) for x,y in pair_list]
+#
+# def constraint_to_bool_var_pairs(constraint):
+#     '''
+#     takes a collection of at most three indices and returns:
+#     [(i ,j), (i, k), (j, k)] if constraint = (i,j,k)
+#     [(i,j)] if constraint (i,j)
+#     [(i,i)] if constraint (i,i)
+#     '''
+#     constraint = map(lambda i: bool_var(i,True), constraint)
+#     if len(constraint) > 3:
+#         raise ValueError('input must be of length at most 3')
+#     elif len(constraint) == 3:
+#         x = constraint
+#         return [ (x[0], x[1]),  (x[0], x[2]),  (x[1], x[2]) ]
+#
+#     elif len(constraint) == 2:
+#         return [ (x[0], x[1]) ]
+#     elif len(constraint) == 1:
+#         return[(x[0],x[0])]
+#     else:
+#         raise ValueError('input must be of length at least 1')
+#
+# def clause_to_edge(clause):
+#     assert len(clause) == 2
+#     assert type(clause[0]) == type(clause[1]) == bool_var
+#     x,y = clause
+#     return [(neg(x),y) , (neg(y),x)]
+#
+# def char_to_binary_tripple(char):
+#     '''Takes any character with at most 3 states (encoded  as a vector), and
+#     returns a list of two state characters (used in the reduction to 2-SAT)
+#     outlined in chapter 14 of Gusfeld 2003.
+#     A two or one state character will be padded with characters of the form
+#     [0,0,...0], to yield 3 characters total.
+#     '''
+#     states = set(char)
+#     if len(states) <= 3:
+#         return [ [int(y == x) for y in char] for x in states] + [ len(char)*[0] for i in range(3-len(states))]
+#     else:
+#         raise TypeError('char has more than 3 states!')
+#
+#
+# def three_state_to_binary_tripple(char):
+#     states = set(char)
+#     if len(set(char)) < 3:
+#         return [char]
+#     elif len(states) == 3:
+#         states = set(char)
+#         return [ [int(y == x) for y in char] for x in states]
+#     else:
+#         raise TypeError('char has more than 3 states!')
 
 def restricted_chordal_completion_exists(G):
     '''

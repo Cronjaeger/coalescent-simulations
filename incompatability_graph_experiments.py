@@ -704,7 +704,7 @@ def minimal_inconsistent_tripples(S, ancestral_type_known = True, inconsistent_p
             if (s1,s2) not in inconsistent_pairs:
                 for s3 in informative[(j+1):]:
                     if (s1,s3) not in inconsistent_pairs and (s2,s3) not in inconsistent_pairs:
-                        if three_state_compatability_test((S[:,s1],S[:,s2],S[:,s3])):
+                        if not three_state_compatability_test((S[:,s1],S[:,s2],S[:,s3])):
                             min_triples.append((s1,s2,s3))
     return min_triples
 

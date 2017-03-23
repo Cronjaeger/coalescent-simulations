@@ -749,7 +749,7 @@ def three_state_compatability_test(chars):
 
         K = find_consistent_subset(incompatible_pairs = incompatible_pairs, constraint_sets = I_to_J.values())
 
-        if K is None:
+        if len(K) == 0:
             return False
         else:
             return True
@@ -860,6 +860,21 @@ def constraint_to_bool_var_pairs(constraint):
     else:
         raise ValueError('input must be of length at least 1')
 
+def __fitch_test():
+	'''Takes a famous example of three minimally incompatible characters
+A	A	A
+A	C	C
+C	G	C
+C	C	G
+G	A	G
+proposed by Fitch (1975),
+and tests if they are correcty identified as pairwise compatible but
+mutually incompatible.'''
+	S = np.array([[0,0,0],[0,1,1],[1,2,1],[1,1,2],[2,0,2]])
+	i_pairs = inconsistentColumnPairs(S,ancestral_type_known=False)
+	i_triples = minimal_inconsistent_tripples(S,ancestral_type_known = False)
+	assert len(i_pairs) == 0
+	assert len(i_triples) == 1
 
 
 ###

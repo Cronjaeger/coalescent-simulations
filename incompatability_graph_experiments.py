@@ -4,6 +4,7 @@ import numpy as np
 import subprocess
 from finiteSitesModell_investigations import *
 from TwoSat import *
+import math
 
 def incompatability_graph(simulation):
     '''
@@ -277,17 +278,18 @@ def parse_metadata(input_str):
     lines = str.split(input_str, '\n')
     return {'command':lines[0],'seed':int(lines[1])}
 
-def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site = float(10**-4), theta_high_per_site = float(10**-4), rho_per_site = float(10**-5), single_recombinant_site = True):
+def run_experiment_1(N = 5, sites = 10000, sequences = 10, theta_low_per_site = float(10**-4), theta_high_per_site = float(10**-4), rho_per_site = float(10**-5), recombination_points = [1]):
 
     theta_low = sites*theta_low_per_site
     theta_high = sites*theta_high_per_site
     mutation_rate = theta_high/2.0
     rho = rho_per_site * sites
 
-    if single_recombinant_site == True:
-        recomb_sites = 2
-    else:
-        recomb_sites = sites
+    recomb_sites = [1 + p for p in recombination_points]
+    # if single_recombinant_site == True:
+    #     recomb_sites = 2
+    # else:
+    #     recomb_sites = sites
 
     # if seed is not None:
     #     np.random.seed(seed)
@@ -295,8 +297,8 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
     #     seed = generate_seed()
 
     #we simulate a coalescent-model with recombination
-    recomb_sim = ms_sim_theta(n = sequences, theta = theta_low, N = N, rho = rho, nsites = recomb_sites)
-    recomb_experiments = recomb_sim['experiments']
+    recomb_sims = [ms_sim_theta(n = sequences, theta = theta_low, N = N, rho = rho, nsites = s) for s in recomb_sites]
+    recomb_experiments = [sim['experiments'] for sim in recomb_sims]
 
 
     #we re-set the seed
@@ -306,47 +308,54 @@ def run_experiment_1(N = 1000, sites = 10000, sequences = 10, theta_low_per_site
     recurrent_sim = [simulator_KingmanFiniteSites(sequences,mutation_rate,sites,True) for i in xrange(N)]
 
     #we go over each list of experiments, and generate their incompatibility graphs
-    recomb_graphs = map(incompatability_graph,recomb_experiments)
+    recomb_graphs = [map(incompatability_graph,experiments) for experiments in recomb_experiments]
     recurrent_graphs = map(incompatability_graph,recurrent_sim)
 
     #we find indices of simulations that contain incompatibilities
-    incomp_recomb = []
+    incomp_recomb = [[] for i in range(len(recomb_graphs))]
     incomp_recurrent = []
     for i in xrange(N):
 
-        G_recomb = recomb_graphs[i]
-        if len(G_recomb.edges()) > 0:
-            incomp_recomb.append(i)
+        for j in range(len(recomb_graphs)):
+            G_recomb = recomb_graphs[j][i]
+            if len(G_recomb.edges()) > 0:
+                incomp_recomb[j].append(i)
 
         G_recurrent = recurrent_graphs[i]
         if len(G_recurrent.edges()) > 0:
             incomp_recurrent.append(i)
 
     #generate list of non-trivial incompatibility graphs
-    recomb_graphs_incomp = [recomb_graphs[i] for i in incomp_recomb]
+    recomb_graphs_incomp = [[recomb_graphs[j][i] for i in incomp_recomb[j]] for j in range(len(incomp_recomb))]
     recurrent_graphs_incomp = [recurrent_graphs[i] for i in incomp_recurrent]
 
     #compute proportion of datasets with incompatabilities
-    incomp_rate_recomb = float(len(incomp_recomb))/N
+    incomp_rate_recomb = [float(len(incomp_recomb[j]))/N for j in range(len(incomp_recomb))]
     incomp_rate_recurr = float(len(incomp_recurrent))/N
 
 
-    if single_recombinant_site:
-        #If the following is false, something has gone terribly wrong
-        assert all(map(nx.is_bipartite, recomb_graphs_incomp))
+    # if single_recombinant_site:
+    #     #If the following is false, something has gone terribly wrong
+    #     assert all(map(nx.is_bipartite, recomb_graphs_incomp))
 
     #return a dictionary of computed values for plotting etc.
-    return {'recomb_sim':recomb_sim,
-            'recurrent_sim':recurrent_sim,
-            'recomb_graphs':recomb_graphs,
-            'recomb_graphs_incomp':recomb_graphs_incomp,
-            'recurrent_graphs':recurrent_graphs,
-            'recurrent_graphs_incomp':recurrent_graphs_incomp,
-            'incomp_rate_recurr':incomp_rate_recurr,
-            'incomp_rate_recomb':incomp_rate_recomb,
-            'recomb_index_incomp':incomp_recomb,
-            'recurr_index_incomp':incomp_recurrent
-            }
+
+    results_recurr = {
+        'incomp_rate_recurr':incomp_rate_recurr,
+        'recurrent_sim':recurrent_sim,
+        'recurrent_graphs':recurrent_graphs,
+        'recurrent_graphs_incomp':recurrent_graphs_incomp,
+        'recurr_index_incomp':incomp_recurrent
+        }
+    results_recomb = [{
+        'recomb_sim':recomb_sims[i],
+        'recomb_graphs':recomb_graphs[i],
+        'recomb_graphs_incomp':recomb_graphs_incomp[i],
+        'recomb_index_incomp':incomp_recomb[i],
+        'incomp_rate_recomb':incomp_rate_recomb[i]
+        } for i in range(len(recomb_sims))]
+
+    return [results_recurr,results_recomb]
 
 def summary(S):
     '''
@@ -429,41 +438,45 @@ def block_compatibility(block_1,block_2):
 def partition_compatibility(part1,part2):
     return all([all(map(lambda B: block_compatibility(A,B), part2)) for A in part1])
 
-def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensions = ['.png','.jpeg','.svg','.pdf'], base_node_size = 20,alpha = 0.2, drop_deg_0_nodes = True, drop_non_segregating_sites = True):
+def generate_plots_experiment_1(results, rows_max = 5, savepath = None , file_extensions = ['png','jpeg','svg','pdf'], base_node_size = 20,alpha = 0.2, drop_deg_0_nodes = True, drop_non_segregating_sites = True):
 
     #for politting
-    cols = 2
+    cols = int(len(results[0]) > 0) + len(results[1])
     rows = rows_max
 
-    recurrent_graphs_incomp = results['recurrent_graphs_incomp']
-    recomb_graphs_incomp = results['recomb_graphs_incomp']
-
+    recurrent_graphs_incomp = results[0]['recurrent_graphs_incomp'] if len(results) > 0 else []
+    recomb_graphs_incomp = [result_dict['recomb_graphs_incomp'] for result_dict in results[1]]
 
     recurrent_graphs_to_plot = recurrent_graphs_incomp[:(min(rows_max,len(recurrent_graphs_incomp)))]
-    recomb_graphs_to_plot = recomb_graphs_incomp[:(min(rows_max,len(recomb_graphs_incomp)))]
+    recomb_graphs_to_plot = [X[:(min(rows_max,len(X)))] for X in recomb_graphs_incomp]
 
-    rows = max(len(recurrent_graphs_to_plot),len(recomb_graphs_to_plot))
+    rows = max(map(len,recomb_graphs_to_plot))
+    if len(results) > 0:
+        rows = max(len(recurrent_graphs_to_plot),rows)
 
-    fig = plt.figure(figsize = (16,5*rows))
+    fig = plt.figure(figsize = (8*cols,6*rows))
+
+    summaries = [[ None for j in range(cols)] for i in xrange(rows)]
 
     for i,G in enumerate(recurrent_graphs_to_plot):
         G = nx.Graph(G) # copy the graph so we don't change anything in results
 
         #determine auxiliary statistics
-        sim_index = results['recurr_index_incomp'][i]
-        d_summary = summary(results['recurrent_sim'][sim_index].getS())
+        sim_index = results[0]['recurr_index_incomp'][i]
+        d_summary = summary(results[0]['recurrent_sim'][sim_index].getS())
+        summaries[i][0] = d_summary
 
         large_components = filter(lambda x: len(x)>1, nx.connected_components(G))
         large_component_sizes = map(len,large_components)
         large_component_sizes_str = ' '.join(map(str,large_component_sizes))
 
         #sumarize aux. statistics
-        title_str = 'chars: %i (%i inf.), state-dist: %s\nsize: %s,$\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],str(tuple(d_summary['state distribution'].values())),large_component_sizes_str,d_summary['stariness'])
+        #title_str = 'chars: %i (%i inf.), state-dist: %s\nsize: %s,$\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],str(tuple(d_summary['state distribution'].values())),large_component_sizes_str,d_summary['stariness'])
+        title_str = ''
 
-        sites = results['recurrent_sim'][i].L
+        sites = results[0]['recurrent_sim'][i].L
 
-
-        char_states_at_site = map(lambda k: len(set(results['recurrent_sim'][sim_index].sequences[:,k])),range(sites))
+        char_states_at_site = map(lambda k: len(set(results[0]['recurrent_sim'][sim_index].sequences[:,k])),range(sites))
         palette = {1:'black',2:'blue',3:'red',4:'green'}
         color_dict = dict([(node,palette[char_states_at_site[node]]) for node in G.nodes()])
 
@@ -475,36 +488,43 @@ def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensio
             G.remove_nodes_from(irrelevant_sites)
 
 
-        plt.subplot(rows,cols,2*i+1)
+        plt.subplot(rows,cols,cols*i+1)
         plt.title(title_str)
         # nx.draw_spring(G, node_color = 'red')
         draw_FSM_graph(G, base_node_size = base_node_size,alpha = alpha, color_dict = color_dict)
 
-    for i,G in enumerate(recomb_graphs_to_plot):
+    for j,graph_list in enumerate(recomb_graphs_to_plot):
+        #print len(graph_list),rows,cols
+        for i, G in enumerate(graph_list):
 
-        G = nx.Graph(G) # copy the graph so we don't change anything in results
-        if drop_deg_0_nodes:
-            remove_nodes_with_degree_0(G)
+            G = nx.Graph(G) # copy the graph so we don't change anything in results
+            if drop_deg_0_nodes:
+                remove_nodes_with_degree_0(G)
 
-        large_component_graphs = filter(lambda x: len(x)>1, nx.connected_component_subgraphs(G))
-        size_strs = []
-        for g in large_component_graphs:
-            if nx.is_bipartite(g):
-                l,r = nx.bipartite.sets(g)
-                size_strs.append('%i-%i'%(len(l),len(r)))
-        size_str = ' '.join(size_strs)
-        #size_l,size_r = sizes[0],sizes[1]
+            # large_component_graphs = filter(lambda x: len(x)>1, nx.connected_component_subgraphs(G))
+            # size_strs = []
+            # for g in large_component_graphs:
+            #     if nx.is_bipartite(g):
+            #         l,r = nx.bipartite.sets(g)
+            #         size_strs.append('%i-%i'%(len(l),len(r)))
+            # size_str = ' '.join(size_strs)
 
-        sim_index = results['recomb_index_incomp'][i]
-        d_summary = summary(results['recomb_sim']['S_list'][sim_index])
-        title_str = 'chars: %i (%i inf.), blocks: %s, $\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],size_str,d_summary['stariness'])
+            #size_l,size_r = sizes[0],sizes[1]
 
+            sim_index = results[1][j]['recomb_index_incomp'][i]
+            d_summary = summary(results[1][j]['recomb_sim']['S_list'][sim_index])
+            #title_str = 'chars: %i (%i inf.), blocks: %s, $\\star$ = %0.2f'%(d_summary['n chars'],d_summary['n informative chars'],size_str,d_summary['stariness'])
+            title_str = ''
+            #print (cols*i + 2)+j
 
-        plt.subplot(rows,cols,2*(i+1))
-        plt.title(title_str)
-        # nx.draw_spring(G, node_color = 'blue')
-        draw_IS_w_recomb_graph(G, base_node_size = base_node_size,alpha = alpha)
+            plt.subplot(rows,cols,(cols*i + 2)+j)
+            plt.title(title_str)
+            # nx.draw_spring(G, node_color = 'blue')
+            coloring_dicts = draw_IS_w_recomb_graph(G, base_node_size = base_node_size,alpha = alpha, return_groups = True)
 
+            d_summary['disjoint component colorings'] = [d['color2nodes'] for d in coloring_dicts['component_dicts']]
+
+            summaries[i][j+1] = d_summary
     # graphs = rows*cols
     # for i in range(graphs):
     #     plt.subplot(rows,cols,i)
@@ -514,10 +534,24 @@ def generate_plots_experiment_1(results, rows_max = 5, savepath = './', extensio
     #     determine_S_of_connected_components(results,print_results=False,with_header=True)
     plt.draw()
 
-    return fig
+    if savepath is not None:
+        savepath = str(savepath)
+        #save_errs = []
+        for ex in file_extensions:
+            filename_str = '%s.%s'%(savepath,ex)
+            try:
+                fig.savefig(filename_str)
+                print 'Saved %s'%filename_str
+            except:
+                #save_errs.append(ex)
+                print 'Error saving %s'%filename_str
+        #for ex in save_errs:
+        #    print 'Error saving %s.%s'%(savepath,ex)
+
+    return {'fig':fig, 'summaries':summaries}
     # sample  incompatible datasets from each experiment, and plot them
 
-def draw_FSM_graph(G, alpha = .2, base_node_size = 10, color_dict = None):
+def draw_FSM_graph(G, alpha = .2, base_node_size = 10, color_dict = None, return_groups = False):
 
     sizeDict = size_proportional_to_degree(G, base = base_node_size)
     nodelist = sizeDict.keys()
@@ -528,10 +562,14 @@ def draw_FSM_graph(G, alpha = .2, base_node_size = 10, color_dict = None):
         node_color = [color_dict[node] for node in nodelist]
     #nx.draw_spring(G, node_color = 'red')
     #pos = nx.spring_layout(G)
-    pos = node_positions(G)
+    d = node_positions(G,return_groups = return_groups)
+    pos = d['positions']
     nx.draw(G, nodelist = nodelist, width = 0.4, pos = pos, node_color = node_color, alpha = alpha, node_size = sizes, linewidths = 0.0)
+    if return_groups:
+        #components = map(list,nx.connected_components(G))
+        return d
 
-def draw_IS_w_recomb_graph(G, alpha = .2, base_node_size = 10, labels = {},font_size = 12):
+def draw_IS_w_recomb_graph(G, alpha = .2, base_node_size = 10, labels = {},font_size = 12,return_groups = False):
 
     sizeDict = size_proportional_to_degree(G, base = base_node_size)
     nodelist = sizeDict.keys()
@@ -540,38 +578,65 @@ def draw_IS_w_recomb_graph(G, alpha = .2, base_node_size = 10, labels = {},font_
     if nx.bipartite.is_bipartite(G):
         #pos = bipartite_layout(G)
         posMap = bipartite_layout
+        #posMap = k_partite_layout
     else:
         #pos = nx.spring_layout(G)
-        posMap = nx.spring_layout
-    pos = node_positions(G,componentMap = posMap)
+        #posMap = nx.spring_layout
+        posMap = k_partite_layout
+    d = node_positions(G,componentMap = posMap, return_groups = return_groups)
+    pos = d['positions']
     nx.draw(G, pos = pos, node_color = 'blue', width = 0.2, nodelist = nodelist, node_size = sizes, alpha = alpha, linewidths = 0.0, labels = labels, font_size = font_size)
+    if return_groups:
+        return d
+
     #nx.draw(G, pos = pos, node_color = G.nodes(),vmin = 0.5,vmax = 0.6, width = 0.2, nodelist = nodelist, node_size = sizes, alpha = alpha)
 
 
-def node_positions(G,componentMap = nx.spring_layout, whitespace = 0.2):
+def node_positions(G,componentMap = nx.spring_layout, whitespace = 0.2,return_groups = False):
     assert type(G) is nx.Graph
     assert 0 <= whitespace < 1.0
 
     subgraphs = [g for g in nx.connected_component_subgraphs(G)]
     n_components = len(subgraphs)
 
+    if componentMap is nx.spring_layout:
+        def new_componentMap(G,return_all):
+            if return_all:
+                return {'node2position':nx.spring_layout(G),'component_dicts':{0:G.nodes()}}
+            else:
+                return nx.spring_layout(G)
+        componentMap = new_componentMap
+
     if n_components == 1:
-        return componentMap(G)
+        #d_component['positions'] = d_component['node2position']
+        if return_groups:
+            d_component = componentMap(G,return_all = True)
+            return {'positions':d_component['node2position'], 'component_dicts':[d_component]}
+        else:
+            return {'positions':componentMap(G,return_all = False)}
 
     #widths = [1.0/len(subgraphs) for i in range(len(subgraphs))]
     widths = [(1 - whitespace)*float(len(g))/len(G) for g in subgraphs]
     #print sum(widths),widths
 
     positions = {}
+    component_dicts = []
 
     for i,g in enumerate(subgraphs):
-        pos_component = componentMap(g)
+        if return_groups:
+            d_component = componentMap(g,return_all = True)
+            component_dicts.append(d_component)
+            pos_component = d_component['node2position']
+        else:
+            pos_component = componentMap(g,return_all = False)
         shift = sum(widths[:i]) + i*whitespace/n_components
         for node in pos_component:
             x,y = pos_component[node]
             positions[node] = (shift + (widths[i]*x), y)
-
-    return positions
+    if return_groups:
+        return {'positions':positions, 'component_dicts':component_dicts}
+    else:
+        return {'positions':positions}
 
 
 # def color_prop_to_pos(G):
@@ -592,7 +657,7 @@ def size_proportional_to_degree(G,base = 10,deg_0_size = 5):
     return sizeDict
 
 
-def bipartite_layout(G):
+def bipartite_layout(G, return_all = False):
 
     assert nx.bipartite.is_bipartite(G)
 
@@ -614,7 +679,53 @@ def bipartite_layout(G):
     # for i,node in enumerate(right):
     #     positions[node] = (float(1),float((size_right - 2*i))/size_right)
 
-    return positions
+    if return_all:
+        return {'node2color':dict([(v,int(v in right)) for v in G.nodes()]), 'color2nodes':{0:left, 1:right},'node2position':positions}
+    else:
+        return positions
+
+def k_partite_layout(G, gap_fraction = 0.7, return_all = False):
+    node2color = nx.coloring.greedy_color(G)
+    colors = set(node2color.values())
+    color2nodes = dict([(color,set()) for color in colors])
+    for node, color in node2color.iteritems():
+        color2nodes[color].add(node)
+    node2position = nodes_to_positions_on_unit_circle(color2nodes.values(), gap_fraction)
+    if return_all:
+        return {'node2color':node2color, 'color2nodes':color2nodes, 'node2position':node2position}
+    else:
+        return node2position
+    #groups = [filter(lambda v: dict_node2color[v] == c, dict_node2color) for c in colors]
+
+def nodes_to_positions_on_unit_circle(node_groups,gap_fraction = 0.5):
+    '''Will map a list of lists (each corresponding to a group of nodes) to a
+dictionary assigning each node a position [as a tuple of the form (x,y)]
+according to the following rules:
+ * Each group (regardless of size) is allocated an equal-length arc on the unit
+   circle.
+ * The groups are equally spaced from one another.
+ * the total fraction of arc-length allocated to nodes is
+      (gap_fraction * 2 * pi)
+ * the first group will have its center at x = 0, y = 1'''
+    assert  0  <= gap_fraction < 1.0
+    n_groups = len(node_groups)
+    #group_gap_polar = 2*math.pi*float(gap_fraction)/n_groups
+    group_extension_polar = 2*math.pi*float(1.0 - gap_fraction)/n_groups
+    group_centers_polar = [2*math.pi*i / n_groups for i in range(n_groups)]
+    node_pos_dict = dict()
+    for group,center in zip(node_groups,group_centers_polar):
+        n_nodes = len(group)
+        if n_nodes == 1:
+            node_pos_dict[list(group)[0]] = polar_to_xy(center)
+        else:
+            node_positions_polar = [ center + group_extension_polar * (0.5 - float(i)/(n_nodes - 1)) for i in range(n_nodes)]
+            node_positions_xy = map(polar_to_xy, node_positions_polar)
+            node_pos_dict.update(zip(group, node_positions_xy))
+    return node_pos_dict
+
+
+def polar_to_xy(theta,radius = 1.0):
+    return (radius * math.cos(theta), radius * math.sin(theta))
 
 # def generate_all_k_tuples_of_i_state_characters_on_n_sequences(k,i,n):
 #     out = []

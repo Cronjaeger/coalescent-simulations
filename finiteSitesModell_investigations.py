@@ -668,8 +668,8 @@ sorted in order of least elements.'''
     partition.sort(key = min)
     return partition
 
-def count_minimal_vs_actual_mutations(simulation, ancestral_type_known = True):
-    assert isinstance(simulation,simulator_KingmanFiniteSites)
+def count_minimal_vs_actual_mutations(simulation, ancestral_type_known = True, ret_all= True):
+    #assert isinstance(simulation,simulator_KingmanFiniteSites)
 
     site_mut_count = simulation.getSiteMutationCounts() # counts actual number of mutations
 
@@ -684,7 +684,10 @@ def count_minimal_vs_actual_mutations(simulation, ancestral_type_known = True):
     A = np.array(site_mut_count)
     B = np.array(min_mut_counts)
     C = A - B
-    return C
+    if ret_all:
+        return {'actual':A, 'minimal':B, 'diff':C}
+    else:
+        return C
 
 
 def draw_partition_intersection_graph(representation):

@@ -685,7 +685,7 @@ def bipartite_layout(G, return_all = False):
         return positions
 
 def k_partite_layout(G, gap_fraction = 0.7, return_all = False):
-    node2color = nx.coloring.greedy_color(G)
+    node2color = nx.coloring.greedy_color(G,strategy = nx.coloring.strategy_connected_sequential_dfs, interchange= True)
     colors = set(node2color.values())
     color2nodes = dict([(color,set()) for color in colors])
     for node, color in node2color.iteritems():
